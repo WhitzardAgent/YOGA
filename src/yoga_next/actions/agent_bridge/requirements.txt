@@ -1,0 +1,30 @@
+# Agent Bridge 依赖包列表
+
+# 核心依赖
+paramiko>=3.0.0          # SSH/SFTP支持
+asyncio>=3.4.3           # 异步编程支持
+python-dotenv>=1.0.0     # 环境变量管理
+aiofiles>=23.0.0         # 异步文件操作
+
+# 可选依赖（用于特定功能）
+requests>=2.28.0         # HTTP请求（用于Notion API、网页爬取等）
+beautifulsoup4>=4.12.0   # HTML解析（用于网页爬取）
+lxml>=4.9.0              # XML解析器
+pandas>=2.0.0            # 数据处理
+numpy>=1.24.0            # 数值计算
+
+# 代码分析相关依赖
+pylint>=2.17.0           # 代码质量检查
+flake8>=6.0.0            # 代码风格检查
+bandit>=1.7.0            # 安全漏洞检查
+mccabe>=0.7.0            # 圈复杂度分析
+
+# Notion API相关
+notion-client>=2.0.0     # Notion API客户端
+
+# 开发依赖（可选）
+pytest>=7.4.0            # 测试框架
+pytest-asyncio>=0.21.0   # 异步测试支持
+black>=23.0.0            # 代码格式化
+isort>=5.12.0            # 导入排序
+mypy>=1.5.0              # 类型检查

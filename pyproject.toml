@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yoga_next"
+version = "0.1.0"
+description = "A Python package for AI agent system"
+authors = [
+    {name = "Yoga-Next Team", email = ""}  # Add email if needed
+]
+readme = "README.md"  # If you have a README.md file
+requires-python = ">=3.7"
+dependencies = [
+    "pyyaml",      # For YAML parsing
+    "openai",      # For OpenAI API integration
+    "paramiko",    # For SSH connections in agent_bridge
+    "requests",    # For HTTP requests in agent_bridge
+    "beautifulsoup4",  # For HTML parsing in agent_bridge
+    "tenacity",    # For retry logic in model.py
+]
+
+[project.optional-dependencies]
+dev = [
+    # Add development dependencies here
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
