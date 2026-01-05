@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from ..environments.base import Environment
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
 
 
 class ActionSpace(ABC):

@@ -15,6 +15,8 @@ setup(
         "requests",    # For HTTP requests in agent_bridge
         "beautifulsoup4",  # For HTML parsing in agent_bridge
         "tenacity",    # For retry logic in model.py
+        "nbformat",    # For Jupyter notebook format handling
+        "nbclient",    # For executing Jupyter notebooks
     ],
     extras_require={
         "dev": [
