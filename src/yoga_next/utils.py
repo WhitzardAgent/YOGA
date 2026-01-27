@@ -555,69 +555,61 @@ class YogDisplay:
         self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
 
     def render_observation(self, obs: Dict[str, Any]):
-            """将观测结果字典解包并渲染为结构化的 Markdown (### Key \n Value)"""
+            """将观测结果字典解包并严格按照 ### key \n value 格式渲染为 Markdown"""
             from rich.markdown import Markdown
             from rich.panel import Panel
             import json
 
-            # 1. 确保 obs 是字典
+            # 1. 确保 obs 是字典，处理可能传入的字符串
             if isinstance(obs, str):
                 try:
                     obs = json.loads(obs)
                 except:
                     obs = {"content": obs}
             
-            # 2. 提取并移除元数据（不作为正文展示的字段）
+            # 2. 提取元数据用于 UI 标题和样式，但不作为正文重复展示
             action_name = obs.pop("action", "")
             status = obs.get("status", "unknown")
             stderr = obs.get("stderr", "")
             
-            # 判定错误状态
-            error_indicators = ["error", "failed", "exception", "traceback"]
-            is_error = (
-                status == "error" or 
-                (isinstance(stderr, str) and stderr.strip()) or
-                any(ind in str(obs).lower() for ind in error_indicators)
-            )
+            # 判定是否为错误状态（用于边框颜色）
+            is_error = status == "error"
             
             md_parts = []
 
-            # 3. 核心解包逻辑：遍历字典，将 k, v 转换为 ### k \n v
-            # 定义需要忽略或特殊处理的 Key
-            ignored_keys = ["status", "error_code"]
-            
+            # 3. 核心解包逻辑：将字典转换为 ### Key \n Value 格式
+            # 我们按照你要求的顺序或字典自然顺序遍历
             for k, v in obs.items():
-                if k in ignored_keys or v is None:
+                # 跳过空值，保持界面整洁
+                if v is None or v == "":
                     continue
                 
-                # 格式化 Value：如果是空字符串或空容器则跳过
-                v_str = str(v).strip()
-                if not v_str:
-                    continue
-                    
-                # 添加标题
+                # 添加 Markdown 三级标题
                 md_parts.append(f"### {k}")
                 
-                # 根据内容决定是否使用代码块
-                # 如果是 stdout/stderr 或者包含换行，或者是某些特定 action 的输出
-                is_code_type = k in ["stdout", "stderr", "output", "content"]
-                has_newline = "\n" in v_str
+                # 处理 Value 的展示格式
+                v_str = str(v).strip()
                 
-                if is_code_type or has_newline:
+                # 如果是 stdout/stderr 或包含换行符，使用代码块包裹以增强可读性
+                if k in ["stdout", "stderr", "output"] or "\n" in v_str:
                     lang = "bash" if k == "stderr" else "text"
                     md_parts.append(f"```{lang}\n{v_str}\n```")
                 else:
+                    # 普通短文本直接显示
                     md_parts.append(v_str)
-            
+                
+                # 加上换行分割
+                md_parts.append("")
+
             # 4. 兜底处理
             if not md_parts:
-                md_parts.append("*[No detailed output]*")
+                md_parts.append("_No detailed output data_")
             
-            # 5. 渲染 UI
-            md_content = "\n\n".join(md_parts)
+            # 5. 组合 Markdown 内容
+            md_content = "\n".join(md_parts)
             md = Markdown(md_content)
             
-            # 样式配置
+            # 6. 配置 Panel 样式
             border_style = "bold red" if is_error else "bright_blue"
             title_prefix = "⚠️" if is_error else "📥"
             title = f" {title_prefix} Observation: [bold]{action_name}[/bold] " if action_name else f" {title_prefix} Observation "
