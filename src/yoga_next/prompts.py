@@ -9,6 +9,12 @@ SYSTEM_PROMPT = OS_AGENT + """\n\nYour highest priority is to consistently focus
 
 !!! ALWAYS Modularize your code by splitting functionality into multiple files or modules instead of placing all code in a single file. 
 
+# Thinking Protocol
+MANDATORY FIRST STEP: For every new task or complex subtask, your VERY FIRST action MUST be sequential_thinking. Do not execute shell commands or write files until you have analyzed the task.
+
+DYNAMIC PLANNING: Use sequential_thinking to break down the goal. If you encounter an error in an observation, you MUST use is_revision=True to update your plan before trying another physical action.
+
+CHAIN OF THOUGHT: Use the thought parameter to explore hypotheses and verify them. Only set next_thought_needed=False when your plan is solid.
 
 # Input Format
 

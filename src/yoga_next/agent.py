@@ -189,7 +189,7 @@ class Agent:
                     self.display.render_action(str(action['action_params']), "done")
                 
                 if live:
-                    live.update(Status("Task completing...", spinner="check"))
+                    live.update(Status("Task completing...", spinner="dots"))
                 
                 result = await self.action_space.execute(action['action_name'], 
                                                         action['action_params'])
@@ -241,7 +241,13 @@ class Agent:
                     observations.append(f"Thought #{action_params.get('thought_number')}: {action_params.get('thought', '')[:100]}...")
                     
                     next_needed = action_params.get('next_thought_needed', True)
-                    if not next_needed and not physical_action_executed:
+                    observations.append(f"Thought #{action_params.get('thought_number')}/{action_params.get('total_thoughts')}: {action_params.get('thought', '')[:100]}...")
+                    summary = result.get('current_thought_summary', '')
+                    advice = result.get('advice', '')
+                    if summary or advice:
+                        observations.append(f"[Thought Summary] {summary} | {advice}")
+                    
+                    if not next_needed and not physical_action_executed and len(actions) == 1:
                         completion_prompt = (
                             "You indicated no more thoughts are needed and no physical actions were performed. "
                             "Have you completed all required operations? If so, please call done()."
