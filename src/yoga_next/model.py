@@ -71,7 +71,13 @@ class Model:
         
         try:
             response = self.client.chat.completions.create(**params)
-            return response.choices[0].message.content
+            res =  response.choices[0].message.content
+            if('<minimax:tool_call>' in res):
+                res = res.replace('<minimax:tool_call>', '')
+            if('</minimax:tool_call>' in res):
+                res = res.replace('</minimax:tool_call>', '')
+            return res
+
         except Exception as e:
             logging.error(f"Error in chat_completion: {str(e)}")
             raise
