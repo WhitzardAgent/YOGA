@@ -81,6 +81,9 @@ class Agent:
                 self.action_space.execute(action_name, action_params),
                 timeout=timeout
             )
+            output = result.get("output")
+            if output is not None:
+                return output
             return result
         except asyncio.TimeoutError:
             log_warn(f"Action '{action_name}' timed out after {timeout}s")
@@ -111,49 +114,6 @@ class Agent:
         if len(lines) <= max_lines:
             return content
         return "\n".join(lines[:keep]) + f"\n\n[bold yellow]... (Skipped {len(lines)-keep*2} lines) ...[/bold yellow]\n\n" + "\n".join(lines[-keep:])
-    
-    def _format_action_result(self, result: Dict[str, Any], action_name: str = "") -> tuple:
-        """从动作结果中提取可读内容，返回 (display_text, border_style, title)"""
-        status = result.get("status", "ok")
-        error_code = result.get("error_code")
-        
-        display_text = ""
-        border_style = "dim"
-        title_suffix = ""
-        
-        if status == "error" or error_code:
-            border_style = "red"
-            title_suffix = " [bold red]✗[/bold red]"
-            error_msg = result.get("message", "")
-            display_text = f"[bold red]Error: {error_msg}[/bold red]"
-            if error_code:
-                display_text += f"\n\nError Code: {error_code}"
-        else:
-            stdout = result.get("stdout", "")
-            stderr = result.get("stderr", "")
-            message = result.get("message", "")
-            output = result.get("output", "")
-            
-            content_parts = []
-            if stdout and str(stdout).strip():
-                content_parts.append(f"[bold cyan]STDOUT:[/bold cyan]\n{stdout}")
-            if stderr and str(stderr).strip():
-                content_parts.append(f"[bold red]STDERR:[/bold red]\n{stderr}")
-            if message and str(message).strip():
-                content_parts.append(f"[bold cyan]Message:[/bold cyan]\n{message}")
-            if output and str(output).strip():
-                content_parts.append(f"[bold cyan]Output:[/bold cyan]\n{output}")
-            
-            if not content_parts:
-                content_parts = [str(result) if str(result).strip() else "No output"]
-            
-            display_text = "\n\n".join(content_parts)
-            border_style = "green" if status == "success" else "dim"
-        
-        display_text = self._truncate_observation(display_text)
-        title = f"📥 Observation: {action_name}{title_suffix}"
-        
-        return display_text, border_style, title
     
     def _should_highlight_shell(self, action_name: str, content: str) -> bool:
         """判断是否应该对内容进行 shell 语法高亮"""
