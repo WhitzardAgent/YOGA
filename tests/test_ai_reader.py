@@ -4,7 +4,7 @@ import sys
 import argparse
 from pathlib import Path
 
-# 确保导入路径正确
+# Ensure import paths are correct
 root_path = os.path.dirname(os.path.abspath(__file__))
 if root_path not in sys.path:
     sys.path.insert(0, root_path)
@@ -17,7 +17,7 @@ from yoga_next.tasks import Task
 from yoga_next.utils import log_info, log_error
 
 async def run_research_backbone_distillation(paper_path_str: str):
-    # 1. 验证并初始化论文路径
+    # 1. Path Verification
     paper_abs_path = Path(paper_path_str).resolve()
     if not paper_abs_path.exists():
         log_error(f"Paper not found: {paper_abs_path}")
@@ -26,56 +26,61 @@ async def run_research_backbone_distillation(paper_path_str: str):
     workspace = paper_abs_path.parent
     paper_name = paper_abs_path.name
 
-    # 2. 环境配置
+    # 2. Environment & Agent Config
     local_env_config = {
         'env_name': 'yoga_research_env',
         'workspace_root': str(workspace)
     }
 
-    # 这里的 config_path 请修改为你本地真实的路径
+    # IMPORTANT: Update agent_config to use the "researcher" type
     config_path = '/inspire/hdd/global_user/25015/YOGA-Next/configs/config_local.yaml'
     agent_config = AgentConfig.from_yaml(config_path)
+    
+    # Inject researcher-specific settings
+    agent_config.agent_type = "researcher" 
+    agent_config.max_actions = 5  # Allow chaining for Read-Write Coupling
 
     env = LocalCondaEnvironment(local_env_config)
-    
-    # 3. 实例化 ResearchActionSpace
     research_space = ResearchActionSpace('research', env)
     
-    # 4. 深度思想蒸馏指令：明确四维度提取目标
+    # 3. Refined English Instruction (Principles-Driven)
+    # We remove JSON formatting requirements and focus on the "Thought Skeleton"
     instruction = f"""
-    你现在的身份是顶级 AI 研究员。请对当前目录下的论文文件 '{paper_name}' 进行深度思想建模。
-    你需要利用工具进行多次探测，最终在 research_notebook.jsonl 中产出用于 SFT 的“思想骨架”。
+    OBJECTIVE: Distill the "Thought Skeleton" of the paper '{paper_name}'.
     
-    你的探测流应包含：
-    1. 获取大纲并定位 Methodology 与 Experiments。
-    2. 扫描 Insight，识别作者观察到的“核心冲突”与“范式转变点”。
-    3. 提取核心公式，并将其背后的“逻辑算子”抽象出来。
-    4. 提取实验表格，理解作者如何设计对比来“证伪”或“证实”其 Hypothesis。
+    WORKING PROTOCOL:
+    1. Mapping: Use `get_outline` to locate critical sections (Methodology, Logic, Experiments).
+    2. Synchronous Read-Write: As you use `read_section`, immediately use `append_to_notebook` to record:
+       - Problem Formulation: How the conflict is defined.
+       - Heuristic Intuition: The core "spark" or "trick" behind the solution.
+       - Algorithmic Primitives: The atomic building blocks of the proposed logic.
+       - Validation Paradigm: How the hypothesis is stressed and proven.
+    3. Structural Evidence: Use `extract_all_tables` to find empirical proof.
     
-    最后，在 notebook 中记录如下结构的 JSON 笔记：
-    {{
-      "problem_formulation": "作者如何定义问题？",
-      "intuition_heuristic": "作者解决问题的灵感直觉是什么？",
-      "algorithmic_primitives": "核心算法逻辑的原子组合是什么？",
-      "validation_logic": "实验设计的核心逻辑范式是什么？"
-    }}
-    完成提炼后调用 done。
+    FINAL GOAL:
+    Before calling `done`, review your `research_notes.md`. Your final response must present 
+    a synthesized, hierarchical backbone of the paper's intellectual contribution.
     """
     
     task = Task(task_id=f"distill_{paper_abs_path.stem}", instruction=instruction)
+    
+    # The Agent will now use PromptFactory internally to load the "researcher" mindset
     agent = Agent(agent_config=agent_config, action_spaces=[research_space])
     
     log_info(f"🧬 Starting Backbone Distillation for: {paper_name}")
 
     try:
-        # 执行任务：Agent 会根据指令多次调用 research 空间的方法
+        # Execution Loop
         result = await agent.execute(task)
-        log_info(f"✅ Distillation Finished. Result: {result}")
+        log_info(f"✅ Distillation Finished. Summary: {result}")
         
-        # 物理检查产出
-        notebook_path = workspace / "research_notebook.jsonl"
+        # Physical Verification of the Markdown Notebook
+        notebook_path = workspace / "research_notes.md"
         if notebook_path.exists():
-            log_info(f"✨ Successfully generated SFT data at: {notebook_path}")
+            log_info(f"✨ Successfully generated Thought Skeleton at: {notebook_path}")
+            # Optional: Print the first few lines of the notes
+            with open(notebook_path, 'r') as f:
+                log_info(f"--- Notebook Preview ---\n{f.read(500)}...")
         
     except Exception as e:
         log_error(f"❌ Distillation Failed: {e}")
