@@ -444,20 +444,9 @@ class Agent:
                 observations.append(result_str)
                 
                 if self.display:
-                    display_text, border_style, title = self._format_action_result(result, action_name)
-                    if self._should_highlight_shell(action_name, display_text):
-                        syntax = Syntax(display_text, 'bash', theme='monokai')
-                        self.display.console.print(Panel(
-                            syntax,
-                            title=title,
-                            border_style=border_style
-                        ))
-                    else:
-                        self.display.console.print(Panel(
-                            display_text,
-                            title=title,
-                            border_style=border_style
-                        ))
+                    result_for_render = result.copy()
+                    result_for_render['action'] = action_name
+                    self.display.render_observation(result_for_render)
                 
             state = self.create_state(task=task,
                                       prev_action=parsed_json['current_state']['next_goal'],

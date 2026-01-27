@@ -555,85 +555,81 @@ class YogDisplay:
         self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
 
     def render_observation(self, obs: Dict[str, Any]):
-        """将观测结果提取核心文本并渲染为 Markdown 格式"""
-        from rich.markdown import Markdown
-        
-        if isinstance(obs, str):
-            obs = {"content": obs}
-        
-        action_name = obs.get("action", "")
-        status = obs.get("status", "unknown")
-        stderr = obs.get("stderr", "")
-        is_error = status == "error" or (isinstance(stderr, str) and stderr.strip())
-        
-        content = None
-        output_data = obs.get("output", {})
-        if isinstance(output_data, dict):
-            content = output_data.get("stdout") or output_data.get("message")
-        if not content:
-            content = obs.get("stdout") or obs.get("message")
-        if not content:
-            content = str(obs)
-        
-        content_str = str(content).strip() if content is not None else "[EMPTY]"
-        
-        if content_str.startswith("{") and content_str.endswith("}"):
-            try:
-                import json
-                parsed = json.loads(content_str)
-                keys_to_keep = ["stdout", "message", "output", "result"]
-                filtered = {k: v for k, v in parsed.items() if k in keys_to_keep and v}
-                if filtered:
-                    parts = []
-                    for k, v in filtered.items():
-                        if isinstance(v, str):
-                            parts.append(v)
-                        else:
-                            parts.append(str(v))
-                    content_str = "\n".join(parts)
-            except:
-                content_str = content_str.strip("{}").strip()
-        
-        md_parts = []
-        
-        if is_error and stderr:
-            md_parts.append("### ❌ Execution Error")
-            md_parts.append("```bash")
-            md_parts.append(str(stderr).strip())
-            md_parts.append("```")
-            if content_str:
-                md_parts.append("---")
-        
-        if content_str:
-            action_needs_codeblock = (
-                "\n" in content_str or
-                (action_name and any(x in action_name.lower() for x in ["execute_shell", "read_file", "bash", "run_command"]))
+            """将观测结果字典解包并渲染为结构化的 Markdown (### Key \n Value)"""
+            from rich.markdown import Markdown
+            from rich.panel import Panel
+            import json
+
+            # 1. 确保 obs 是字典
+            if isinstance(obs, str):
+                try:
+                    obs = json.loads(obs)
+                except:
+                    obs = {"content": obs}
+            
+            # 2. 提取并移除元数据（不作为正文展示的字段）
+            action_name = obs.pop("action", "")
+            status = obs.get("status", "unknown")
+            stderr = obs.get("stderr", "")
+            
+            # 判定错误状态
+            error_indicators = ["error", "failed", "exception", "traceback"]
+            is_error = (
+                status == "error" or 
+                (isinstance(stderr, str) and stderr.strip()) or
+                any(ind in str(obs).lower() for ind in error_indicators)
             )
-            if action_needs_codeblock:
-                md_parts.append("```text")
-                md_parts.append(content_str)
-                md_parts.append("```")
-            else:
-                md_parts.append(content_str)
-        
-        if not md_parts:
-            md_parts.append("_No output_")
-        
-        md_content = "\n".join(md_parts)
-        md = Markdown(md_content)
-        
-        border_style = "bold red" if is_error else "bright_blue"
-        title_prefix = "⚠️" if is_error else "📥"
-        title = f"{title_prefix} Observation: {action_name}" if action_name else f"{title_prefix} Observation"
-        
-        panel = Panel(
-            md,
-            title=title,
-            border_style=border_style,
-            expand=False,
-            padding=(0, 2)
-        )
-        self.console.print(panel)
+            
+            md_parts = []
+
+            # 3. 核心解包逻辑：遍历字典，将 k, v 转换为 ### k \n v
+            # 定义需要忽略或特殊处理的 Key
+            ignored_keys = ["status", "error_code"]
+            
+            for k, v in obs.items():
+                if k in ignored_keys or v is None:
+                    continue
+                
+                # 格式化 Value：如果是空字符串或空容器则跳过
+                v_str = str(v).strip()
+                if not v_str:
+                    continue
+                    
+                # 添加标题
+                md_parts.append(f"### {k}")
+                
+                # 根据内容决定是否使用代码块
+                # 如果是 stdout/stderr 或者包含换行，或者是某些特定 action 的输出
+                is_code_type = k in ["stdout", "stderr", "output", "content"]
+                has_newline = "\n" in v_str
+                
+                if is_code_type or has_newline:
+                    lang = "bash" if k == "stderr" else "text"
+                    md_parts.append(f"```{lang}\n{v_str}\n```")
+                else:
+                    md_parts.append(v_str)
+            
+            # 4. 兜底处理
+            if not md_parts:
+                md_parts.append("*[No detailed output]*")
+            
+            # 5. 渲染 UI
+            md_content = "\n\n".join(md_parts)
+            md = Markdown(md_content)
+            
+            # 样式配置
+            border_style = "bold red" if is_error else "bright_blue"
+            title_prefix = "⚠️" if is_error else "📥"
+            title = f" {title_prefix} Observation: [bold]{action_name}[/bold] " if action_name else f" {title_prefix} Observation "
+            
+            panel = Panel(
+                md,
+                title=title,
+                border_style=border_style,
+                expand=False,
+                padding=(0, 2)
+            )
+            self.console.print(panel)
         
     def _detect_and_render_content(self, content: str, is_error: bool = False, action_name: str = "") -> Panel:
         border_style = "bold red" if is_error else "dim"
