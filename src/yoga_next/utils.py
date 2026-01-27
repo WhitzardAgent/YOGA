@@ -555,49 +555,49 @@ class YogDisplay:
         self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
 
     def render_observation(self, obs: Dict[str, Any]):
-        """将观测结果渲染为 Markdown 格式并打印"""
+        """将观测结果提取核心文本并渲染为 Markdown 格式"""
         if isinstance(obs, str):
             obs = {"content": obs}
         
-        content = obs.get("content") or ""
+        # --- 1. 核心内容提取逻辑优化 ---
+        content = obs.get("content")
         if not content:
-            if isinstance(obs, dict):
-                status = obs.get("status", "unknown")
-                if "stdout" in obs:
-                    content = obs["stdout"]
-                elif "output" in obs:
-                    output = obs["output"]
-                    if isinstance(output, dict):
-                        content = output.get("stdout") or output.get("message") or str(output)
-                    else:
-                        content = str(output)
-                elif "message" in obs:
-                    content = obs["message"]
-                else:
-                    content = str(obs)
+            # 处理嵌套的 output 结构 (例如 conda 环境返回的结构)
+            output_data = obs.get("output", {})
+            if isinstance(output_data, dict):
+                # 优先级：stdout > message > 整个 output
+                content = output_data.get("stdout") or output_data.get("message") or str(output_data)
             else:
-                content = str(obs)
+                # 处理直接返回 stdout/message 的情况
+                content = obs.get("stdout") or obs.get("message") or str(obs)
         
-        content_str = content.strip() if isinstance(content, str) else str(content).strip()
-        if not content_str:
-            content_str = "[EMPTY]"
+        content_str = str(content).strip() if content is not None else "[EMPTY]"
         
-        status = obs.get("status", "unknown") if isinstance(obs, dict) else "unknown"
+        # --- 2. 状态判定 ---
+        status = obs.get("status", "unknown")
         error_indicators = ["error", "failed", "exception", "traceback"]
         is_error = any(ind in content_str.lower() for ind in error_indicators) or status == "error"
         
-        # 直接使用 Markdown 渲染，不再调用 _detect_and_render_content
-        border_style = "bold red" if is_error else "dim"
-        title_prefix = "📥" if not is_error else "⚠️"
+        # --- 3. 样式配置 ---
+        border_style = "bold red" if is_error else "blue" # 成功用蓝色，错误用红色
+        title_prefix = "⚠️" if is_error else "📥"
         action_name = obs.get("action", "")
-        title = f"{title_prefix} Observation: {action_name}" if action_name else f"{title_prefix} Observation"
+        title = f"{title_prefix} Observation: [bold]{action_name}[/bold]" if action_name else f"{title_prefix} Observation"
         
-        # 将内容作为 Markdown 文本渲染
+        # --- 4. Markdown 渲染 ---
         from rich.markdown import Markdown
+        # 如果内容本身不是 Markdown (比如纯文本报错)，Markdown 类也能优雅处理
         md = Markdown(content_str)
-        panel = Panel(md, title=title, border_style=border_style, expand=False)
+        
+        panel = Panel(
+            md, 
+            title=title, 
+            border_style=border_style, 
+            expand=False, 
+            padding=(0, 1)
+        )
         self.console.print(panel)
-    
+        
     def _detect_and_render_content(self, content: str, is_error: bool = False, action_name: str = "") -> Panel:
         border_style = "bold red" if is_error else "dim"
         title_prefix = "📥" if not is_error else "⚠️"
