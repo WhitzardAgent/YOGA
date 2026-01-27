@@ -26,33 +26,54 @@ class EditActionSpace(ActionSpace):
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def _get_workspace_root(self) -> str:
+        """Get workspace_root from environment config, defaulting to current working directory."""
+        if hasattr(self.env, 'config') and isinstance(self.env.config, dict):
+            return self.env.config.get("workspace_root", self.env.workspace_root)
+        if hasattr(self.env, 'workspace_root'):
+            return self.env.workspace_root
+        from os import getcwd
+        return getcwd()
+
     def _resolve_path(self, path: str) -> str:
-        """Convert relative path to absolute path based on current working directory."""
+        """Resolve path relative to workspace_root with security check.
+
+        All input paths are treated as relative to workspace_root.
+        Uses .resolve() to get absolute path and verifies it's within workspace_root.
+        Raises PermissionError if path attempts to escape workspace.
+        """
         from pathlib import Path
-        p = Path(path)
-        if not p.is_absolute():
-            from os import getcwd
-            p = Path(getcwd()) / p
-        return str(p)
+        import os
+
+        workspace_root = self._get_workspace_root()
+        workspace_resolved = Path(workspace_root).resolve()
+
+        relative_path = path.lstrip("/")
+        abs_path = (workspace_resolved / relative_path).resolve()
+
+        if not str(abs_path).startswith(str(workspace_resolved) + os.sep) and abs_path != workspace_resolved:
+            raise PermissionError(f"Access denied: '{path}' resolves to '{abs_path}' which is outside workspace '{workspace_root}'")
+
+        return str(abs_path)
 
     async def _handle_view(self, path: str, view_range: list = None) -> Dict[str, Any]:
         """View file or directory content.
 
-        :param path: Absolute path to file or directory.
-        :param view_range: Optional line range [start, end] to show.
+        :param path: Path relative to the workspace root (e.g., 'src/main.py').
+        :param view_range: Optional line range [start, end] to show (1-indexed).
         """
-        path = self._resolve_path(path)
+        resolved_path = self._resolve_path(path)
 
-        is_dir_result = await self.env.run_shell(f"test -d '{path}' && echo 'dir' || echo 'file'")
+        is_dir_result = await self.env.run_shell(f"test -d '{resolved_path}' && echo 'dir' || echo 'file'")
         is_dir = "dir" in is_dir_result.get("stdout", "")
 
         if is_dir:
-            cmd = f"find '{path}' -maxdepth 2 -not -path '*/\\.*' -printf '%p\\n' 2>/dev/null | head -50"
+            cmd = f"find '{resolved_path}' -maxdepth 2 -not -path '*/\\.*' -printf '%p\\n' 2>/dev/null | head -50"
             result = await self.env.run_shell(cmd)
             output = f"Files in {path}:\n{result.get('stdout', '')}"
             return {"status": "success", "stdout": output}
 
-        file_result = await self.env.read_file(path)
+        file_result = await self.env.read_file(resolved_path)
         if file_result.get("status") == "error":
             return file_result
         file_content = file_result.get("content") or file_result.get("stdout") or ""
@@ -79,23 +100,25 @@ class EditActionSpace(ActionSpace):
     async def _handle_create(self, path: str, file_text: str = "") -> Dict[str, Any]:
         """Create a new file with the given content.
 
-        :param path: Absolute path to the new file to create.
+        :param path: Path relative to the workspace root (e.g., 'new_file.py').
         :param file_text: Content to write to the new file.
         """
-        path = self._resolve_path(path)
-        await self.env.write_file(path, file_text)
+        resolved_path = self._resolve_path(path)
+        await self.env.write_file(resolved_path, file_text)
         return {"status": "success", "stdout": f"File created: {path}"}
 
     async def _handle_str_replace(self, path: str, old_str: str, new_str: str = "") -> Dict[str, Any]:
         """Replace old_str with new_str in a file. old_str must be unique.
 
-        :param path: Absolute path to file to edit.
+        :param path: Path relative to the workspace root (e.g., 'src/main.py').
         :param old_str: The exact string to replace. Must be unique in the file.
         :param new_str: The new string to replace old_str with.
         """
-        path = self._resolve_path(path)
+        resolved_path = self._resolve_path(path)
 
-        file_result = await self.env.read_file(path)
+        file_result = await self.env.read_file(resolved_path)
+        if file_result.get("status") == "error":
+            return file_result
         file_content = file_result.get("content") or file_result.get("stdout") or ""
 
         occurrences = file_content.count(old_str)
@@ -117,19 +140,21 @@ class EditActionSpace(ActionSpace):
             except SyntaxError as e:
                 return {"status": "error", "message": f"Python syntax error: {e}"}
 
-        await self.env.write_file(path, new_file_content)
+        await self.env.write_file(resolved_path, new_file_content)
         return {"status": "success", "stdout": f"File updated: {path}"}
 
     async def _handle_insert(self, path: str, insert_line: int, new_str: str) -> Dict[str, Any]:
         """Insert new_str after the specified line number.
 
-        :param path: Absolute path to file to edit.
+        :param path: Path relative to the workspace root (e.g., 'src/main.py').
         :param insert_line: Line number AFTER which to insert (1-indexed).
         :param new_str: String to insert.
         """
-        path = self._resolve_path(path)
+        resolved_path = self._resolve_path(path)
 
-        file_result = await self.env.read_file(path)
+        file_result = await self.env.read_file(resolved_path)
+        if file_result.get("status") == "error":
+            return file_result
         file_content = file_result.get("content") or file_result.get("stdout") or ""
 
         lines = file_content.split("\n")
@@ -148,20 +173,20 @@ class EditActionSpace(ActionSpace):
             except SyntaxError as e:
                 return {"status": "error", "message": f"Python syntax error: {e}"}
 
-        await self.env.write_file(path, new_file_content)
+        await self.env.write_file(resolved_path, new_file_content)
         return {"status": "success", "stdout": f"Inserted after line {insert_line} in {path}"}
 
     async def _handle_search(self, path: str, keyword: str) -> Dict[str, Any]:
         """Search for a keyword in files within a directory using grep.
 
-        :param path: Directory path to search in.
+        :param path: Directory path relative to the workspace root (e.g., 'src').
         :param keyword: Keyword to search for.
         """
-        path = self._resolve_path(path)
+        resolved_path = self._resolve_path(path)
         if not keyword or not keyword.strip():
             return {"status": "error", "message": "Keyword cannot be empty."}
         escaped_keyword = keyword.replace("'", "'\\''")
-        cmd = f"grep -rnE --exclude-dir={{.git,.venv,node_modules}} --exclude={{*.pyc,*.egg-info}} '{escaped_keyword}' '{path}' 2>/dev/null | head -100"
+        cmd = f"grep -rnE --exclude-dir={{.git,.venv,node_modules}} --exclude={{*.pyc,*.egg-info}} '{escaped_keyword}' '{resolved_path}' 2>/dev/null | head -100"
         result = await self.env.run_shell(cmd)
         stdout = result.get("stdout", "")
 

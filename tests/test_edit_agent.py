@@ -84,5 +84,13 @@ async def run_edit_agent_test():
         await env.close()
 
 if __name__ == "__main__":
-    # 建议使用 uv loop 或原生 asyncio
-    asyncio.run(run_edit_agent_test())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(run_edit_agent_test())
+    finally:
+        # 在关闭 loop 前，先清理异步生成器
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        # 给子进程管道清理留一点缓冲
+        loop.run_until_complete(asyncio.sleep(0.1))
+        loop.close()
