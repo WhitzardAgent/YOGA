@@ -556,45 +556,82 @@ class YogDisplay:
 
     def render_observation(self, obs: Dict[str, Any]):
         """将观测结果提取核心文本并渲染为 Markdown 格式"""
+        from rich.markdown import Markdown
+        
         if isinstance(obs, str):
             obs = {"content": obs}
         
-        # --- 1. 核心内容提取逻辑优化 ---
-        content = obs.get("content")
+        action_name = obs.get("action", "")
+        status = obs.get("status", "unknown")
+        stderr = obs.get("stderr", "")
+        is_error = status == "error" or (isinstance(stderr, str) and stderr.strip())
+        
+        content = None
+        output_data = obs.get("output", {})
+        if isinstance(output_data, dict):
+            content = output_data.get("stdout") or output_data.get("message")
         if not content:
-            # 处理嵌套的 output 结构 (例如 conda 环境返回的结构)
-            output_data = obs.get("output", {})
-            if isinstance(output_data, dict):
-                # 优先级：stdout > message > 整个 output
-                content = output_data.get("stdout") or output_data.get("message") or str(output_data)
-            else:
-                # 处理直接返回 stdout/message 的情况
-                content = obs.get("stdout") or obs.get("message") or str(obs)
+            content = obs.get("stdout") or obs.get("message")
+        if not content:
+            content = str(obs)
         
         content_str = str(content).strip() if content is not None else "[EMPTY]"
         
-        # --- 2. 状态判定 ---
-        status = obs.get("status", "unknown")
-        error_indicators = ["error", "failed", "exception", "traceback"]
-        is_error = any(ind in content_str.lower() for ind in error_indicators) or status == "error"
+        if content_str.startswith("{") and content_str.endswith("}"):
+            try:
+                import json
+                parsed = json.loads(content_str)
+                keys_to_keep = ["stdout", "message", "output", "result"]
+                filtered = {k: v for k, v in parsed.items() if k in keys_to_keep and v}
+                if filtered:
+                    parts = []
+                    for k, v in filtered.items():
+                        if isinstance(v, str):
+                            parts.append(v)
+                        else:
+                            parts.append(str(v))
+                    content_str = "\n".join(parts)
+            except:
+                content_str = content_str.strip("{}").strip()
         
-        # --- 3. 样式配置 ---
-        border_style = "bold red" if is_error else "blue" # 成功用蓝色，错误用红色
+        md_parts = []
+        
+        if is_error and stderr:
+            md_parts.append("### ❌ Execution Error")
+            md_parts.append("```bash")
+            md_parts.append(str(stderr).strip())
+            md_parts.append("```")
+            if content_str:
+                md_parts.append("---")
+        
+        if content_str:
+            action_needs_codeblock = (
+                "\n" in content_str or
+                (action_name and any(x in action_name.lower() for x in ["execute_shell", "read_file", "bash", "run_command"]))
+            )
+            if action_needs_codeblock:
+                md_parts.append("```text")
+                md_parts.append(content_str)
+                md_parts.append("```")
+            else:
+                md_parts.append(content_str)
+        
+        if not md_parts:
+            md_parts.append("_No output_")
+        
+        md_content = "\n".join(md_parts)
+        md = Markdown(md_content)
+        
+        border_style = "bold red" if is_error else "bright_blue"
         title_prefix = "⚠️" if is_error else "📥"
-        action_name = obs.get("action", "")
-        title = f"{title_prefix} Observation: [bold]{action_name}[/bold]" if action_name else f"{title_prefix} Observation"
-        
-        # --- 4. Markdown 渲染 ---
-        from rich.markdown import Markdown
-        # 如果内容本身不是 Markdown (比如纯文本报错)，Markdown 类也能优雅处理
-        md = Markdown(content_str)
+        title = f"{title_prefix} Observation: {action_name}" if action_name else f"{title_prefix} Observation"
         
         panel = Panel(
-            md, 
-            title=title, 
-            border_style=border_style, 
-            expand=False, 
-            padding=(0, 1)
+            md,
+            title=title,
+            border_style=border_style,
+            expand=False,
+            padding=(0, 2)
         )
         self.console.print(panel)
         
