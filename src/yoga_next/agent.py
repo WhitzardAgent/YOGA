@@ -12,6 +12,11 @@ import time
 from typing import List, Dict, Any, Optional
 from rich.live import Live
 from rich.status import Status
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich.rule import Rule
+from rich import box
 
 
 class Agent:
@@ -44,17 +49,70 @@ class Agent:
         log_info("System Prompt:\n"+self.system_prompt)
         
     def _get_thought_trace(self, max_thoughts: int = 5) -> str:
-        """获取最近的思维摘要列表"""
+        """获取最近的思维摘要列表（紧凑格式）"""
         if not hasattr(self, 'thinking_space') or not self.thinking_space.thought_history:
-            return "(No thoughts yet)"
+            return "[grey50](No reasoning history)[/grey50]"
         
         thoughts = self.thinking_space.thought_history[-max_thoughts:]
         lines = []
         for td in thoughts:
-            prefix = "🔄" if td.is_revision else ("🌿" if td.branch_from_thought else "💭")
-            summary = td.thought[:80] + "..." if len(td.thought) > 80 else td.thought
-            lines.append(f"{prefix} Step #{td.thought_number}: {summary}")
+            icon = "[bold green]✓[/bold green]" if not td.is_revision else "[bold yellow]⚠[/bold yellow]"
+            summary = td.thought[:60].replace("\n", " ") + "..."
+            lines.append(f"{icon} [grey70]T#{td.thought_number}:[/grey70] {summary}")
         return "\n".join(lines)
+
+    def _truncate_observation(self, content: str, max_lines: int = 15, keep: int = 7) -> str:
+        """自动截断过长的 Observation"""
+        lines = content.splitlines()
+        if len(lines) <= max_lines:
+            return content
+        return "\n".join(lines[:keep]) + f"\n\n[bold yellow]... (Skipped {len(lines)-keep*2} lines) ...[/bold yellow]\n\n" + "\n".join(lines[-keep:])
+
+    def _print_step_header(self, step_num: int):
+        """使用带背景颜色的 Rule，产生强烈的视觉分割"""
+        if not self.display:
+            return
+        self.display.console.print("\n")
+        self.display.console.print(Rule(
+            title=f"[bold white] STEP {step_num} [/bold white]",
+            style="on blue",
+            characters=" "
+        ))
+
+    def _render_agent_plan(self, step_num: int, parsed_json: Dict[str, Any], actions: List[Dict[str, Any]]):
+        """使用 Columns/Table 布局展示 Reasoning 和 Execution Plan"""
+        if not self.display:
+            return
+        
+        curr_state = parsed_json.get('current_state', {})
+        memory = curr_state.get('memory', '...')
+        next_goal = curr_state.get('next_goal', '...')
+        
+        logic_panel = Panel(
+            Text(f"{next_goal}\n\n{memory}", style="italic grey70"),
+            title="[bold magenta]🤔 Reasoning[/bold magenta]",
+            border_style="magenta",
+            expand=True
+        )
+        
+        action_table = Table(box=box.SIMPLE_HEAD, expand=True)
+        action_table.add_column("#", style="dim", width=2)
+        action_table.add_column("Action", style="bold yellow")
+        action_table.add_column("Parameters", style="green", no_wrap=True)
+        
+        for i, act in enumerate(actions):
+            params = str(act['action_params'])
+            action_table.add_row(
+                str(i+1),
+                act['action_name'],
+                (params[:40] + "...") if len(params) > 40 else params
+            )
+        
+        combined_content = Table.grid(expand=True)
+        combined_content.add_row(logic_panel)
+        combined_content.add_row(Panel(action_table, title="[bold green]🚀 Execution Plan[/bold green]", border_style="green"))
+        
+        self.display.console.print(combined_content)
 
     def create_state(self, 
                      task: Task, 
@@ -144,40 +202,31 @@ class Agent:
             live.start()
         
         for step_num in range(1, max_steps+1):
-            if(task_idx < 0):
-                log_info('='*10 + f' Step {step_num}/{max_steps} ' + '='*10)
-            else:
-                log_info('='*10 + f' Task {task_idx} Step {step_num}/{max_steps} ' + '='*10)
+            self._print_step_header(step_num)
             
-            if self.display:
-                self.display.render_step_start(step_num, task_idx if task_idx > 0 else None)
-                
             if live:
-                live.update(Status("Thinking...", spinner="dots"))
+                live.update(Status("LLM is thinking...", spinner="bouncingBall"))
             
             output = self.model.chat_completion(self.memory.messages)
-            log_info('+'*10 + f' Agent Output ' + '+'*10)
-            log_info(f'{output}')
             
             self._add_to_memory_stream(task.task_id, step_num, "thinking", {"output": output})
             self.memory.add(role='assistant', content=output)
             
             parsed_json = extract_json_from_model_markdown_output(output)
             parsed_json['raw_model_output'] = output
-            actions = parsed_json['action']
+            actions = parsed_json.get('action', [])
             self.memory.add_working_memory(task_idx, step_num, parsed_json['current_state']['memory'])
 
-            current_state = parsed_json.get('current_state', {})
-            thought_content = current_state.get('memory', '')
-            if self.display and thought_content:
-                self.display.render_thought(thought_content)
-
-            if(len(actions) == 0):
+            if len(actions) == 0:
                 log_warn("No actions parsed from model output, skipping to next step.")
                 self._add_to_memory_stream(task.task_id, step_num, "warning", {"message": "No actions parsed from model output."})
+                if live:
+                    live.update(Status("No actions parsed. Retrying...", spinner="dots"))
                 continue
 
-            if(len(actions) == 1 and actions[0]['action_name'] == 'done'):
+            self._render_agent_plan(step_num, parsed_json, actions)
+
+            if len(actions) == 1 and actions[0]['action_name'] == 'done':
                 action = actions[0]
                 self._add_to_memory_stream(task.task_id, step_num, "action", {
                     "action_index": 0,
@@ -222,8 +271,8 @@ class Agent:
                 })
                 
                 if action_name == 'sequential_thinking':
-                    if self.display:
-                        live.update(Status("Processing thought...", spinner="dots"))
+                    if live:
+                        live.update(Status(f"Processing thought #{action_params.get('thought_number', '?')}...", spinner="dots"))
                     
                     result = await self.action_space.execute(action_name, action_params)
                     
@@ -238,10 +287,9 @@ class Agent:
                         f"{prefix} {action_params.get('thought', '')}"
                     )
                     
-                    observations.append(f"Thought #{action_params.get('thought_number')}: {action_params.get('thought', '')[:100]}...")
+                    observations.append(f"Thought #{action_params.get('thought_number')}/{action_params.get('total_thoughts')}: {action_params.get('thought', '')[:100]}...")
                     
                     next_needed = action_params.get('next_thought_needed', True)
-                    observations.append(f"Thought #{action_params.get('thought_number')}/{action_params.get('total_thoughts')}: {action_params.get('thought', '')[:100]}...")
                     summary = result.get('current_thought_summary', '')
                     advice = result.get('advice', '')
                     if summary or advice:
@@ -256,12 +304,8 @@ class Agent:
                     
                     continue
                 
-                if self.display:
-                    action_code = str(action_params)
-                    self.display.render_action(action_code, action_name)
-                
                 if live:
-                    live.update(Status(f"Executing {action_name}...", spinner="earth"))
+                    live.update(Status(f"Running: [bold cyan]{action_name}[/bold cyan]...", spinner="earth"))
                 
                 result = await self.action_space.execute(action_name, action_params)
                 
@@ -287,7 +331,12 @@ class Agent:
                 observations.append(result_str)
                 
                 if self.display:
-                    self.display.render_observation(result)
+                    obs_text = self._truncate_observation(str(result.get('stdout') or result.get('message') or result))
+                    self.display.console.print(Panel(
+                        obs_text,
+                        title=f"📥 Observation: {action_name}",
+                        border_style="dim"
+                    ))
                 
             state = self.create_state(task=task,
                                       prev_action=parsed_json['current_state']['next_goal'],
@@ -295,9 +344,6 @@ class Agent:
                                       step_num=step_num)
                                       
             self._add_to_memory_stream(task.task_id, step_num, "observation", {"observations": '\n\n'.join(observations)})
-
-            log_info('+'*10 + f' Observation ' + '+'*10)
-            log_info(f'{state}')
             self.memory.add(role='user', content=state)
             
         if live:
