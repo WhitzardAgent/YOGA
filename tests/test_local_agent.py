@@ -25,6 +25,8 @@ local_env_config = {
     'workspace_root': str(workspace)
 }
 
+agent_config = AgentConfig.from_yaml('/inspire/hdd/global_user/25015/YOGA-Next/configs/config_local.yaml')
+
 async def run_local_agent_test():
     env = LocalCondaEnvironment(local_env_config)
     
@@ -35,12 +37,6 @@ async def run_local_agent_test():
         instruction="请在当前目录下创建一个名为 test_script.py 的文件，写入打印 'Hello from Yoga' 的代码，然后运行它，最后调用 done 标记任务完成。"
     )
 
-    agent_config = AgentConfig(
-        api_base_url="https://api.openai.com/v1",
-        model_name="gpt-4",
-        api_key=os.getenv("OPENAI_API_KEY", "")
-    )
-    
     agent = Agent(
         agent_config=agent_config,
         action_spaces=[local_action_space]
