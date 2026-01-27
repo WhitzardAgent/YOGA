@@ -555,29 +555,84 @@ class YogDisplay:
         self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
 
     def render_observation(self, obs: Dict[str, Any]):
-        status = obs.get("status", "unknown")
-        color = "green" if status == "success" else "red" if status == "error" else "blue"
+        if isinstance(obs, str):
+            obs = {"content": obs}
         
-        output_parts = []
-        if "stdout" in obs:
-            output_parts.append(obs["stdout"])
-        elif "output" in obs:
-            output = obs["output"]
-            if isinstance(output, dict):
-                if "stdout" in output:
-                    output_parts.append(output["stdout"])
-                elif "message" in output:
-                    output_parts.append(output["message"])
+        content = obs.get("content") or ""
+        if not content:
+            if isinstance(obs, dict):
+                status = obs.get("status", "unknown")
+                if "stdout" in obs:
+                    content = obs["stdout"]
+                elif "output" in obs:
+                    output = obs["output"]
+                    if isinstance(output, dict):
+                        content = output.get("stdout") or output.get("message") or str(output)
+                    else:
+                        content = str(output)
+                elif "message" in obs:
+                    content = obs["message"]
+                else:
+                    content = str(obs)
             else:
-                output_parts.append(str(output))
-        elif "message" in obs:
-            output_parts.append(obs["message"])
+                content = str(obs)
         
-        output_text = "\n".join(output_parts).strip()
-        if not output_text:
-            output_text = f"[{status.upper()}]"
+        content_str = content.strip() if isinstance(content, str) else str(content).strip()
+        if not content_str:
+            content_str = "[EMPTY]"
         
-        self.console.print(Panel(output_text, title="👁️ Observation", border_style=color, expand=False))
+        status = obs.get("status", "unknown") if isinstance(obs, dict) else "unknown"
+        error_indicators = ["error", "failed", "exception", "traceback"]
+        is_error = any(ind in content_str.lower() for ind in error_indicators) or status == "error"
+        
+        render_func = self._detect_and_render_content
+        panel = render_func(content_str, is_error=is_error, action_name=obs.get("action", ""))
+        self.console.print(panel)
+    
+    def _detect_and_render_content(self, content: str, is_error: bool = False, action_name: str = "") -> Panel:
+        border_style = "bold red" if is_error else "dim"
+        title_prefix = "📥" if not is_error else "⚠️"
+        default_title = f"{title_prefix} Observation: {action_name}" if action_name else f"{title_prefix} Observation"
+        
+        code_patterns = [
+            ("python", r"^import\s+\w+|^from\s+\w+|^def\s+\w+|^class\s+\w+"),
+            ("javascript", r"^function\s+\w+|const\s+\w+|let\s+\w+|=>"),
+            ("bash", r"^#!|^echo\s+|^\$\(|^\w+\s*=\s*\$\("),
+            ("json", r"^\{.*\}|\[.*\]"),
+            ("sql", r"^SELECT|^INSERT|^UPDATE|^DELETE|^CREATE|^DROP"),
+        ]
+        
+        for lang, pattern in code_patterns:
+            import re
+            if re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
+                syntax = Syntax(content, lang, theme="monokai", padding=1)
+                return Panel(syntax, title=default_title, border_style=border_style, expand=False)
+        
+        table_patterns = [
+            (r"^[\w\s,]+\|(?:[\w\s,]+\|)+$", ","),
+            (r"^[\w\s,]+\t(?:[\w\s,]+\t)+$", "\t"),
+        ]
+        
+        for pattern, delimiter in table_patterns:
+            import re
+            if re.match(pattern, content, re.MULTILINE):
+                lines = content.strip().split("\n")
+                if len(lines) >= 2:
+                    table = Table(box=box.SIMPLE_HEAD, expand=True)
+                    header_line = lines[0]
+                    if delimiter in header_line:
+                        headers = [h.strip() for h in header_line.split(delimiter)]
+                        for header in headers:
+                            table.add_column(header, style="bold cyan")
+                        
+                        for row in lines[1:]:
+                            cells = [c.strip() for c in row.split(delimiter)]
+                            table.add_row(*cells)
+                        
+                        title_with_table = f"{default_title} [Table]"
+                        return Panel(table, title=title_with_table, border_style=border_style)
+        
+        return Panel(content, title=default_title, border_style=border_style, expand=False)
 
     def render_done(self, success: bool, message: str):
         title = "✅ Mission Accomplished" if success else "❌ Mission Failed"

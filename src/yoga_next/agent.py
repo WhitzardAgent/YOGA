@@ -19,11 +19,26 @@ from rich.rule import Rule
 from rich import box
 
 
+DEFAULT_TIMEOUT = 60.0
+LONG_ACTION_TIMEOUT = 300.0
+
+ACTION_TIMEOUTS = {
+    "pip_install": 180.0,
+    "pip_uninstall": 120.0,
+    "conda_install": 180.0,
+    "conda_create": 180.0,
+    "conda_remove": 120.0,
+    "download_file": 120.0,
+    "clone_repo": 120.0,
+}
+
+
 class Agent:
     def __init__(self, 
                  agent_config: AgentConfig,
                  action_spaces: List[ActionSpace],
-                 use_rich_display: bool = True):
+                 use_rich_display: bool = True,
+                 timeout: float = DEFAULT_TIMEOUT):
         self.model = Model(
             api_base=agent_config.api_base_url, 
             model_name=agent_config.model_name, 
@@ -33,6 +48,7 @@ class Agent:
         self.planner = Planner(model=self.model)
         self.action_spaces = action_spaces
         self.use_rich_display = use_rich_display
+        self.timeout = timeout
         
         self.thinking_space = ThinkingActionSpace()
         control_space = ControlActionSpace()
@@ -47,6 +63,33 @@ class Agent:
         self.final_result = None
         self.display = YogDisplay() if use_rich_display else None
         log_info("System Prompt:\n"+self.system_prompt)
+        
+    def _get_timeout_for_action(self, action_name: str) -> float:
+        """根据动作名称获取特定的超时时间"""
+        for key, timeout in ACTION_TIMEOUTS.items():
+            if key in action_name.lower():
+                return timeout
+        return self.timeout
+    
+    async def _execute_with_timeout(self, action_name: str, action_params: Dict[str, Any]) -> Dict[str, Any]:
+        """带超时的动作执行"""
+        timeout = self._get_timeout_for_action(action_name)
+        
+        try:
+            result = await asyncio.wait_for(
+                self.action_space.execute(action_name, action_params),
+                timeout=timeout
+            )
+            return result
+        except asyncio.TimeoutError:
+            log_warn(f"Action '{action_name}' timed out after {timeout}s")
+            return {
+                "status": "error",
+                "message": f"Action '{action_name}' timed out after {timeout}s. Please try a different approach or reduce the scope of this operation.",
+                "error_code": 124,
+                "timeout": timeout,
+                "action": action_name
+            }
         
     def _get_thought_trace(self, max_thoughts: int = 5) -> str:
         """获取最近的思维摘要列表（紧凑格式）"""
@@ -240,8 +283,8 @@ class Agent:
                 if live:
                     live.update(Status("Task completing...", spinner="dots"))
                 
-                result = await self.action_space.execute(action['action_name'], 
-                                                        action['action_params'])
+                result = await self._execute_with_timeout(action['action_name'], 
+                                                          action['action_params'])
                 
                 self.final_result = result
                 self._add_to_memory_stream(task.task_id, step_num, "final_status", {"status": result})
@@ -274,7 +317,7 @@ class Agent:
                     if live:
                         live.update(Status(f"Processing thought #{action_params.get('thought_number', '?')}...", spinner="dots"))
                     
-                    result = await self.action_space.execute(action_name, action_params)
+                    result = await self._execute_with_timeout(action_name, action_params)
                     
                     if self.display and self.thinking_space.thought_history:
                         thinking_data = self.thinking_space.thought_history[-1]
@@ -307,7 +350,7 @@ class Agent:
                 if live:
                     live.update(Status(f"Running: [bold cyan]{action_name}[/bold cyan]...", spinner="earth"))
                 
-                result = await self.action_space.execute(action_name, action_params)
+                result = await self._execute_with_timeout(action_name, action_params)
                 
                 if action_name not in ['sequential_thinking', 'done']:
                     physical_action_executed = True
