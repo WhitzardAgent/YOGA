@@ -498,7 +498,6 @@ def flatten_to_kv_string(data, parent_key='', sep='.'):
         for k, v in data.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             
-            # Recursive calls for nested structures
             if isinstance(v, dict):
                 res = flatten_to_kv_string(v, new_key, sep=sep)
                 if res: lines.append(res)
@@ -507,8 +506,93 @@ def flatten_to_kv_string(data, parent_key='', sep='.'):
                     res = flatten_to_kv_string(item, f"{new_key}[{i}]", sep=sep)
                     if res: lines.append(res)
             
-            # The filter: check if value is not None and not an empty string
             elif v is not None and v != "":
                 lines.append(f"{new_key}:\n{v}")
                 
     return "\n\n".join(filter(None, lines))
+
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.text import Text
+from rich.spinner import Spinner
+from rich.live import Live
+from rich.status import Status
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from typing import Dict, Any, Optional
+import re
+
+
+class YogDisplay:
+    def __init__(self):
+        self.console = Console()
+        self.step_num = 0
+
+    def render_step_start(self, step_num: int, task_idx: Optional[int] = None):
+        self.step_num = step_num
+        if task_idx is not None:
+            self.console.rule(f"[bold blue]Task {task_idx} | Step {step_num}[/bold blue]")
+        else:
+            self.console.rule(f"[bold blue]Step {step_num}[/bold blue]")
+
+    def render_thought(self, thought_content: str):
+        if not thought_content or thought_content.strip() == "":
+            return
+        
+        content = thought_content.strip()
+        
+        content = re.sub(r'<[^>]+>', '', content)
+        
+        text = Text(content, style="italic dim")
+        self.console.print(Panel(text, title="🧠 Thought", border_style="blue", expand=False))
+
+    def render_action(self, action_code: str, action_name: str = "Action"):
+        if not action_code or action_code.strip() == "":
+            return
+        
+        syntax = Syntax(action_code.strip(), "python", theme="monokai", padding=1)
+        self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
+
+    def render_observation(self, obs: Dict[str, Any]):
+        status = obs.get("status", "unknown")
+        color = "green" if status == "success" else "red" if status == "error" else "blue"
+        
+        output_parts = []
+        if "stdout" in obs:
+            output_parts.append(obs["stdout"])
+        elif "output" in obs:
+            output = obs["output"]
+            if isinstance(output, dict):
+                if "stdout" in output:
+                    output_parts.append(output["stdout"])
+                elif "message" in output:
+                    output_parts.append(output["message"])
+            else:
+                output_parts.append(str(output))
+        elif "message" in obs:
+            output_parts.append(obs["message"])
+        
+        output_text = "\n".join(output_parts).strip()
+        if not output_text:
+            output_text = f"[{status.upper()}]"
+        
+        self.console.print(Panel(output_text, title="👁️ Observation", border_style=color, expand=False))
+
+    def render_done(self, success: bool, message: str):
+        title = "✅ Mission Accomplished" if success else "❌ Mission Failed"
+        style = "bold green" if success else "bold red"
+        self.console.print("\n")
+        self.console.print(Panel(message, title=title, border_style=style, padding=(1, 4)))
+
+    def render_planning(self, task_description: str):
+        self.console.print(Panel(task_description, title="📋 Planning", border_style="cyan", expand=False))
+
+    def render_subtask(self, subtask_num: int, subtask: str):
+        self.console.print(f"\n[bold cyan]Subtask {subtask_num}:[/bold cyan] {subtask}")
+
+    def render_thinking(self, message: str = "Waiting for LLM..."):
+        return Status(message, spinner="dots")
+
+    def render_executing(self, message: str = "Executing..."):
+        return Status(message, spinner="earth")
