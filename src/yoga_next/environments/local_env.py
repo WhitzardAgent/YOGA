@@ -410,7 +410,8 @@ class LocalCondaEnvironment(Environment):
             process = await asyncio.create_subprocess_shell(
                 cmd if shell else " ".join(cmd),
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.workspace_root
             )
             stdout, stderr = await process.communicate()
             stdout_decoded = stdout.decode()
