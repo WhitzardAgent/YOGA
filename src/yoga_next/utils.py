@@ -555,6 +555,7 @@ class YogDisplay:
         self.console.print(Panel(syntax, title="🛠️ " + action_name, border_style="yellow", expand=False))
 
     def render_observation(self, obs: Dict[str, Any]):
+        """将观测结果渲染为 Markdown 格式并打印"""
         if isinstance(obs, str):
             obs = {"content": obs}
         
@@ -585,8 +586,16 @@ class YogDisplay:
         error_indicators = ["error", "failed", "exception", "traceback"]
         is_error = any(ind in content_str.lower() for ind in error_indicators) or status == "error"
         
-        render_func = self._detect_and_render_content
-        panel = render_func(content_str, is_error=is_error, action_name=obs.get("action", ""))
+        # 直接使用 Markdown 渲染，不再调用 _detect_and_render_content
+        border_style = "bold red" if is_error else "dim"
+        title_prefix = "📥" if not is_error else "⚠️"
+        action_name = obs.get("action", "")
+        title = f"{title_prefix} Observation: {action_name}" if action_name else f"{title_prefix} Observation"
+        
+        # 将内容作为 Markdown 文本渲染
+        from rich.markdown import Markdown
+        md = Markdown(content_str)
+        panel = Panel(md, title=title, border_style=border_style, expand=False)
         self.console.print(panel)
     
     def _detect_and_render_content(self, content: str, is_error: bool = False, action_name: str = "") -> Panel:
