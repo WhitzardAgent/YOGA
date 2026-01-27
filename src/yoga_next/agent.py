@@ -4,7 +4,7 @@ from .planner import Planner
 from .model import Model
 from .tasks import Task
 from .agent_config import AgentConfig
-from .prompts import SYSTEM_PROMPT
+from .prompts import PromptFactory
 from .utils import log_info, log_warn, log_error, extract_json_from_model_markdown_output, flatten_to_kv_string, YogDisplay
 from .hm import MemoryChunk, MemoryStream
 import asyncio
@@ -56,9 +56,13 @@ class Agent:
         all_spaces = [control_space, self.thinking_space] + action_spaces
         self.action_space = UnionActionSpace(all_spaces)
         
-        self.system_prompt = SYSTEM_PROMPT.format(
-                func_signature=self.action_space.get_action_space_description(), 
-                max_actions=5
+        self.agent_type = agent_config.get("agent_type", "researcher")
+        
+        # 动态生成
+        self.system_prompt = PromptFactory.get_system_prompt(
+            agent_type=self.agent_type,
+            func_signature=self.action_space.get_action_space_description(), 
+            max_actions=5
         )
         self.memory_stream = MemoryStream()
         self.final_result = None
