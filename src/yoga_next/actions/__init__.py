@@ -5,3 +5,4 @@ from .local_action_space import LocalActionSpace
 from .control import ControlActionSpace
 from .thinking import ThinkingActionSpace
 from .edit_action_space import EditActionSpace
+from .research_action_space import ResearchActionSpace
