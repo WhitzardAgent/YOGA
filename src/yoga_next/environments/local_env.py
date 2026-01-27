@@ -216,6 +216,9 @@ class LocalCondaEnvironment(Environment):
 
             await self._run_conda_command(create_cmd)
 
+            tmp_folder = Path(self.workspace_root) / "tmp"
+            tmp_folder.mkdir(parents=True, exist_ok=True)
+
             self.state["env_path"] = await self._get_env_path()
             self.state["is_initialized"] = True
 
@@ -243,18 +246,18 @@ class LocalCondaEnvironment(Environment):
             return self._format_result("error", message=str(e), error_code=-1)
 
     async def run_python_script(self, code: str) -> Dict[str, Any]:
-        """优化版：通过临时文件运行 Python，解决转义字符崩溃问题"""
+        """通过临时文件运行 Python，解决转义字符崩溃问题"""
         if not self.state["is_initialized"]:
             return self._format_result("error", message="Environment not initialized. Call setup() first.", error_code=-1)
 
         try:
-            tmp_file = f".tmp_{uuid.uuid4().hex}.py"
-            tmp_path = self._get_abs_path(tmp_file)
+            tmp_filename = f"{uuid.uuid4().hex}.py"
+            tmp_path = Path(self.workspace_root) / "tmp" / tmp_filename
 
             await self.write_file(str(tmp_path), code)
 
             try:
-                result = await self.execute_command(f"python {tmp_file}")
+                result = await self.execute_command(f"python tmp/{tmp_filename}")
                 return result
             finally:
                 if tmp_path.exists():

@@ -1,4 +1,4 @@
-from .actions import ActionSpace
+from .actions import ActionSpace, UnionActionSpace, ControlActionSpace
 from .memory import Memory
 from .planner import Planner
 from .model import Model
@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 class Agent:
     def __init__(self, 
                  agent_config: AgentConfig,
-                 action_space: ActionSpace):
+                 action_spaces: List[ActionSpace]):
         self.model = Model(
             api_base=agent_config.api_base_url, 
             model_name=agent_config.model_name, 
@@ -23,12 +23,18 @@ class Agent:
         )
         self.memory = Memory(model=self.model)
         self.planner = Planner(model=self.model)
-        self.action_space = action_space
+        self.action_spaces = action_spaces
+        
+        control_space = ControlActionSpace()
+        all_spaces = [control_space] + action_spaces
+        self.action_space = UnionActionSpace(all_spaces)
+        
         self.system_prompt = SYSTEM_PROMPT.format(
-                func_signature=action_space.get_action_space_description(), 
+                func_signature=self.action_space.get_action_space_description(), 
                 max_actions=5
         )
         self.memory_stream = MemoryStream()
+        self.final_result = None
         log_info("System Prompt:\n"+self.system_prompt)
         
 
@@ -54,7 +60,7 @@ class Agent:
 {obs}
 
 ### Environment State
-{self.action_space.env.get_observation()}
+{self.action_space.env.get_observation() if self.action_space.env else 'No environment'}
 """
 
     def dump(self, exp_file_path: str):
@@ -65,7 +71,7 @@ class Agent:
         log_info(f"Memory stream dumped to {exp_file_path}")
 
     def _add_to_memory_stream(self, task_id: str, step_num: int, message_type: str, content: Dict[str, Any]):
-        env_state = self.action_space.env.get_observation()
+        env_state = self.action_space.env.get_observation() if self.action_space.env else ""
         timestamp = time.time()
         memory_chunk = MemoryChunk(
             task_id=task_id,
@@ -79,6 +85,7 @@ class Agent:
 
     async def execute(self, task: Task, max_steps=100):
         self.task = task
+        self.final_result = None
         log_info('Decompose into procedures ...')
         self._add_to_memory_stream(task.task_id, 0, "planning", {"message": f"Decomposing task: {task.instruction}"})
         
@@ -98,12 +105,13 @@ class Agent:
             status = await self.execute_single_task(sub_task, task_idx=(task_idx+1), max_steps=max_steps//5)
             log_info(f'Subtask #{task_idx+1} Final Status: {status}...')   
             self._add_to_memory_stream(sub_task.task_id, -1, "subtask_status", {"subtask_number": task_idx+1, "status": f"Subtask #{task_idx+1} Final Status: {status}"})
+        
+        return self.final_result
     
     async def execute_single_task(self, task, task_idx=-1, max_steps=100):
         self.memory.clear_task_related_memory()
         self.memory.add(role='system', content=self.system_prompt)
         
-        # Initial state logging
         initial_state = self.create_state(task=task,
                                           prev_action='(none)', 
                                           obs='(none)', 
@@ -112,7 +120,8 @@ class Agent:
         self.memory.add(role='user', content=initial_state)
         
         log_info(f"⚠️ {task}")
-        log_info(f'Environment State:\n {self.action_space.env.get_observation()}')
+        env_obs = self.action_space.env.get_observation() if self.action_space.env else "No environment"
+        log_info(f'Environment State:\n {env_obs}')
         task_status = 'Reach maximal steps. Forwarding to the next task.'
         
         for step_num in range(1, max_steps+1):
@@ -128,7 +137,6 @@ class Agent:
             self._add_to_memory_stream(task.task_id, step_num, "thinking", {"output": output})
             self.memory.add(role='assistant', content=output)
             
-            ### parsing
             parsed_json = extract_json_from_model_markdown_output(output)
             parsed_json['raw_model_output'] = output
             actions = parsed_json['action']
@@ -140,12 +148,20 @@ class Agent:
                 continue
 
             if(len(actions) == 1 and actions[0]['action_name'] == 'done'):
-                task_status = f"{action['action_params']}"
-                self._add_to_memory_stream(task.task_id, step_num, "final_status", {"status": task_status})
+                action = actions[0]
+                self._add_to_memory_stream(task.task_id, step_num, "action", {
+                    "action_index": 0,
+                    "action_name": action['action_name'], 
+                    "action_params": action['action_params']
+                })
+                
+                result = await self.action_space.execute(action['action_name'], 
+                                                        action['action_params'])
+                
+                self.final_result = result
+                self._add_to_memory_stream(task.task_id, step_num, "final_status", {"status": result})
                 break
-
         
-
             observations = []
             for i, action in enumerate(actions):
                 self._add_to_memory_stream(task.task_id, step_num, "action", {
@@ -156,6 +172,18 @@ class Agent:
                 
                 result = await self.action_space.execute(action['action_name'], 
                                                         action['action_params'])
+                
+                if action['action_name'] == 'done':
+                    self.final_result = result
+                    self._add_to_memory_stream(task.task_id, step_num, "final_status", {"status": result})
+                    observations.append(flatten_to_kv_string(result))
+                    state = self.create_state(task=task,
+                                              prev_action=parsed_json['current_state']['next_goal'],
+                                              obs='\n\n'.join(observations),
+                                              step_num=step_num)
+                    self._add_to_memory_stream(task.task_id, step_num, "observation", {"observations": '\n\n'.join(observations)})
+                    self.memory.add(role='user', content=state)
+                    return result.get("message", "Task completed")
 
                 result_str = flatten_to_kv_string(result)
                 observations.append(result_str)
@@ -166,9 +194,7 @@ class Agent:
                                       step_num=step_num)
                                       
             self._add_to_memory_stream(task.task_id, step_num, "observation", {"observations": '\n\n'.join(observations)})
-            
 
-                
             log_info('+'*10 + f' Observation ' + '+'*10)
             log_info(f'{state}')
             self.memory.add(role='user', content=state)

@@ -34,19 +34,19 @@ class LocalActionSpace(ActionSpace):
         """
         return await self.env.run_shell(command)
 
-    async def _handle_execute_python(self, code: str) -> Dict[str, Any]:
-        """Execute Python code in the local conda environment.
+    # async def _handle_execute_python(self, code: str) -> Dict[str, Any]:
+    #     """Execute Python code in the local conda environment.
 
-        :param code: The Python code to execute.
-        """
-        return await self.env.run_python(code)
+    #     :param code: The Python code to execute.
+    #     """
+    #     return await self.env.run_python(code)
 
-    async def _handle_install_packages(self, packages: list) -> Dict[str, Any]:
-        """Install Python packages in the local conda environment.
+    # async def _handle_install_packages(self, packages: list) -> Dict[str, Any]:
+    #     """Install Python packages in the local conda environment.
 
-        :param packages: List of package names to install.
-        """
-        return await self.env.install_packages(packages)
+    #     :param packages: List of package names to install.
+    #     """
+    #     return await self.env.install_packages(packages)
 
     async def _handle_run_in_conda_env(self, command: str) -> Dict[str, Any]:
         """Execute a command within the conda environment.
