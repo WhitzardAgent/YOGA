@@ -1,0 +1,88 @@
+import asyncio
+import os
+import sys
+import time
+from pathlib import Path
+
+# 确保导入路径正确
+root_path = os.path.dirname(os.path.abspath(__file__))
+if root_path not in sys.path:
+    sys.path.insert(0, root_path)
+
+from yoga_next.environments import LocalCondaEnvironment
+from yoga_next.actions import LocalActionSpace, EditActionSpace # 导入新Space
+from yoga_next.agent_config import AgentConfig
+from yoga_next.agent import Agent
+from yoga_next.tasks import Task
+from yoga_next.utils import log_info, log_error
+
+async def run_edit_agent_test():
+    # 1. 初始化环境
+    workspace = Path("./yoga_workspace").resolve()
+    workspace.mkdir(exist_ok=True)
+
+    local_env_config = {
+        'env_name': 'yoga_dev_env',
+        'python_version': '3.10',
+        'workspace_root': str(workspace)
+    }
+
+    agent_config = AgentConfig.from_yaml('/inspire/hdd/global_user/25015/YOGA-Next/configs/config_local.yaml')
+
+    env = LocalCondaEnvironment(local_env_config)
+    
+    # 3. 核心：实例化 ActionSpaces
+    # 注意：两个 Space 共享同一个 env 实例
+    local_conda_space = LocalActionSpace('local_shell', env)
+    edit_space = EditActionSpace('edit', env) 
+    
+    # 4. 复杂的端到端任务：涉及创建、搜索、修改和验证
+    instruction = """
+    请执行以下步骤：
+    1. 在当前目录下创建 'math_utils.py'，写入一个名为 'calculate_area' 的函数，但故意留一个拼写错误（比如 print 写成 prrint）。
+    2. 使用 edit 空间的 search 功能找到该拼写错误。
+    3. 使用 str_replace 功能修正该错误，并增加一行注释。
+    4. 运行该文件确保没有语法错误。
+    5. 完成后调用 done。
+    """
+    
+    task = Task(task_id="edit_action_test_001", instruction=instruction)
+
+
+    # 5. 初始化 Agent，注入 EditActionSpace
+    agent = Agent(
+        agent_config=agent_config,
+        action_spaces=[local_conda_space, edit_space]
+    )
+    
+    log_info(f"🚀 Starting EditActionSpace E2E Test: {task.task_id}")
+    
+    exp_file_path = f"exp_bank/{task.task_id}_{int(time.time())}.jsonl"
+    os.makedirs("exp_bank", exist_ok=True)
+
+    try:
+        # 执行任务
+        result = await agent.execute(task)
+        
+        log_info(f"✅ Test Completed. Result: {result}")
+        agent.dump(exp_file_path)
+        
+        # 额外验证：物理检查文件是否存在且正确
+        final_file = workspace / "math_utils.py"
+        if final_file.exists():
+            content = final_file.read_text()
+            if "prrint" not in content and "calculate_area" in content:
+                log_info("验证成功：文件内容已正确修正。")
+            else:
+                log_error("验证失败：文件内容不符合预期。")
+        
+    except Exception as e:
+        log_error(f"❌ Test Failed: {e}")
+        agent.dump(exp_file_path)
+        raise
+    finally:
+        await env.close()
+
+if __name__ == "__main__":
+    # 建议使用 uv loop 或原生 asyncio
+    asyncio.run(run_edit_agent_test())

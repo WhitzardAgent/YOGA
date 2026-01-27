@@ -1,4 +1,4 @@
-from .actions import ActionSpace, UnionActionSpace, ControlActionSpace, ThinkingActionSpace
+from .actions import ActionSpace, UnionActionSpace, ControlActionSpace, ThinkingActionSpace, EditActionSpace
 from .memory import Memory
 from .planner import Planner
 from .model import Model
