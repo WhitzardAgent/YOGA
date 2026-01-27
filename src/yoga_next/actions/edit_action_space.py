@@ -350,39 +350,61 @@ class EditActionSpace(ActionSpace):
         if depth > 10:
             depth = 10
 
-        cmd = f"find '{resolved_path}' -maxdepth {depth} -not -path '*/\\.*' | sort"
+        cmd = f"find '{resolved_path}' -maxdepth {depth} -not -path '*/\\.*' -printf '%p\\n' 2>/dev/null | sort"
         result = await self.env.run_shell(cmd)
-        items = result.get("stdout", "").strip().split("\n")
+        raw_items = result.get("stdout", "").strip().split("\n")
 
-        if not items or items == [""]:
+        if not raw_items or raw_items == [""]:
             return {"status": "success", "stdout": f"Directory '{path}' is empty (depth: {depth})"}
 
-        tree_lines = [f"### 🌳 Directory Tree: {path} (depth: {depth})\n"]
+        items = [item for item in raw_items if item and item != resolved_path]
+        if not items:
+            return {"status": "success", "stdout": f"Directory '{path}' is empty (depth: {depth})"}
 
-        def build_tree_display(items: List[str], prefix: str = "") -> List[str]:
-            tree = []
-            items.sort()
-            filtered = [item for item in items if item]
-            n = len(filtered)
+        prefix = resolved_path.split('/')[-1] or resolved_path
+        tree_lines = [f"### 🌳 Directory Tree: {path} (depth: {depth})\n", f"{prefix}/"]
 
-            for i, item in enumerate(filtered):
-                is_last = (i == n - 1)
-                connector = "└── " if is_last else "├── "
-                tree.append(f"{prefix}{connector}{item.split('/')[-1]}")
+        from collections import defaultdict
+        children_map: Dict[str, List[str]] = defaultdict(list)
+        all_nodes = set()
 
-                if item.endswith('/'):
-                    sub_items = []
-                    item_prefix = item + "/"
-                    for sub in filtered:
-                        if sub.startswith(item_prefix) and sub != item:
-                            sub_items.append(sub)
-                    if sub_items:
-                        extension = "    " if is_last else "│   "
-                        tree.extend(build_tree_display(sub_items, prefix + extension))
+        for item in items:
+            parent = item.rsplit('/', 1)[0] if '/' in item else resolved_path
+            name = item.rsplit('/', 1)[-1] if '/' in item else item
+            children_map[parent].append(name)
+            all_nodes.add(item)
 
-            return tree
+        def get_connector(is_last: bool) -> str:
+            return "└── " if is_last else "├── "
 
-        tree_lines.extend(build_tree_display(items))
+        def build_subtree(parent_path: str, indent: str, is_last: bool):
+            lines = []
+            siblings = children_map.get(parent_path, [])
+            for i, name in enumerate(sorted(siblings)):
+                child_is_last = (i == len(siblings) - 1)
+                connector = get_connector(child_is_last)
+                full_path = f"{parent_path}/{name}" if parent_path != resolved_path else f"{resolved_path}/{name}"
+
+                if full_path in all_nodes:
+                    lines.append(f"{indent}{connector}{name}/")
+                    extension = "    " if is_last else "│   "
+                    lines.extend(build_subtree(full_path, indent + extension, child_is_last))
+                else:
+                    lines.append(f"{indent}{connector}{name}")
+            return lines
+
+        root_children = children_map.get(resolved_path, [])
+        for i, name in enumerate(sorted(root_children)):
+            child_is_last = (i == len(root_children) - 1)
+            connector = get_connector(child_is_last)
+            full_path = f"{resolved_path}/{name}"
+
+            if full_path in all_nodes:
+                tree_lines.append(f"{connector}{name}/")
+                extension = "    " if child_is_last else "│   "
+                tree_lines.extend(build_subtree(full_path, extension, child_is_last))
+            else:
+                tree_lines.append(f"{connector}{name}")
+
         output = "\n".join(tree_lines)
-
         return {"status": "success", "stdout": output}
