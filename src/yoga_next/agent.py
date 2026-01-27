@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.rule import Rule
+from rich.syntax import Syntax
 from rich import box
 
 
@@ -110,6 +111,75 @@ class Agent:
         if len(lines) <= max_lines:
             return content
         return "\n".join(lines[:keep]) + f"\n\n[bold yellow]... (Skipped {len(lines)-keep*2} lines) ...[/bold yellow]\n\n" + "\n".join(lines[-keep:])
+    
+    def _format_action_result(self, result: Dict[str, Any], action_name: str = "") -> tuple:
+        """从动作结果中提取可读内容，返回 (display_text, border_style, title)"""
+        status = result.get("status", "ok")
+        error_code = result.get("error_code")
+        
+        display_text = ""
+        border_style = "dim"
+        title_suffix = ""
+        
+        if status == "error" or error_code:
+            border_style = "red"
+            title_suffix = " [bold red]✗[/bold red]"
+            error_msg = result.get("message", "")
+            display_text = f"[bold red]Error: {error_msg}[/bold red]"
+            if error_code:
+                display_text += f"\n\nError Code: {error_code}"
+        else:
+            stdout = result.get("stdout", "")
+            stderr = result.get("stderr", "")
+            message = result.get("message", "")
+            output = result.get("output", "")
+            
+            content_parts = []
+            if stdout and str(stdout).strip():
+                content_parts.append(f"[bold cyan]STDOUT:[/bold cyan]\n{stdout}")
+            if stderr and str(stderr).strip():
+                content_parts.append(f"[bold red]STDERR:[/bold red]\n{stderr}")
+            if message and str(message).strip():
+                content_parts.append(f"[bold cyan]Message:[/bold cyan]\n{message}")
+            if output and str(output).strip():
+                content_parts.append(f"[bold cyan]Output:[/bold cyan]\n{output}")
+            
+            if not content_parts:
+                content_parts = [str(result) if str(result).strip() else "No output"]
+            
+            display_text = "\n\n".join(content_parts)
+            border_style = "green" if status == "success" else "dim"
+        
+        display_text = self._truncate_observation(display_text)
+        title = f"📥 Observation: {action_name}{title_suffix}"
+        
+        return display_text, border_style, title
+    
+    def _should_highlight_shell(self, action_name: str, content: str) -> bool:
+        """判断是否应该对内容进行 shell 语法高亮"""
+        shell_actions = {
+            "execute_shell", "run_command", "bash", "shell", "exec",
+            "execute_script", "run_bash", "run_shell"
+        }
+        
+        action_lower = action_name.lower().replace("_", "").replace("-", "")
+        for shell_action in shell_actions:
+            if shell_action in action_lower:
+                return True
+        
+        content_start = content.strip()[:100].lower()
+        shell_patterns = [
+            "cd ", "ls ", "cat ", "echo ", "grep ", "find ", "sed ", "awk ",
+            "pip install", "npm install", "apt ", "git ", "docker ",
+            "python", "python3", "node ", "bash ", "sh ",
+            "| ", "&& ", "|| ", ">", "<", ">>", "<<"
+        ]
+        
+        for pattern in shell_patterns:
+            if content_start.startswith(pattern) or pattern in content_start[:50]:
+                return True
+        
+        return False
 
     def _print_step_header(self, step_num: int):
         """使用带背景颜色的 Rule，产生强烈的视觉分割"""
@@ -141,14 +211,14 @@ class Agent:
         action_table = Table(box=box.SIMPLE_HEAD, expand=True)
         action_table.add_column("#", style="dim", width=2)
         action_table.add_column("Action", style="bold yellow")
-        action_table.add_column("Parameters", style="green", no_wrap=True)
+        action_table.add_column("Parameters", style="green", overflow="fold")
         
         for i, act in enumerate(actions):
             params = str(act['action_params'])
             action_table.add_row(
                 str(i+1),
                 act['action_name'],
-                (params[:40] + "...") if len(params) > 40 else params
+                params
             )
         
         combined_content = Table.grid(expand=True)
@@ -374,12 +444,20 @@ class Agent:
                 observations.append(result_str)
                 
                 if self.display:
-                    obs_text = self._truncate_observation(str(result.get('stdout') or result.get('message') or result))
-                    self.display.console.print(Panel(
-                        obs_text,
-                        title=f"📥 Observation: {action_name}",
-                        border_style="dim"
-                    ))
+                    display_text, border_style, title = self._format_action_result(result, action_name)
+                    if self._should_highlight_shell(action_name, display_text):
+                        syntax = Syntax(display_text, 'bash', theme='monokai')
+                        self.display.console.print(Panel(
+                            syntax,
+                            title=title,
+                            border_style=border_style
+                        ))
+                    else:
+                        self.display.console.print(Panel(
+                            display_text,
+                            title=title,
+                            border_style=border_style
+                        ))
                 
             state = self.create_state(task=task,
                                       prev_action=parsed_json['current_state']['next_goal'],
