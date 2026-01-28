@@ -284,7 +284,7 @@ class Agent:
             if live:
                 live.update(Status("LLM is thinking...", spinner="bouncingBall"))
             
-            output = self.model.chat_completion(self.memory.messages)
+            output = self.model.chat_completion(self.memory.get_messages())
             
             self._add_to_memory_stream(task.task_id, step_num, "thinking", {"output": output})
             self.memory.add(role='assistant', content=output)

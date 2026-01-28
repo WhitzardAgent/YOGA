@@ -62,6 +62,7 @@ async def run_latex_paper_optimization(project_dir_str: str, main_file: str = "m
         - Ensure every empirical claim is backed by a valid citation or rigorous experimental data.
         - Ensure the writing of the result analysis is highly insightful.
     5.  **The Mentor's Log**: Document every strategic intervention and its pedagogical rationale in `editing_log.md`. 
+    6.  **Note Taking**: After you view a specific section in a paper, make sure you are going to do some note-taking about the key points and key information in `notebook.md`.
 
     CORE MANDATE (The "Award-Winning" Threshold):
     - **Never call `done` prematurely.** You must continue iterating and refining as long as you identify any weakness in logic, notation, narrative, or formatting.
