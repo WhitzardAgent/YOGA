@@ -129,7 +129,7 @@ func_name_b(arg_1=value1, arg_2=value2, ...)
 - Only provide the action sequence until an action which changes the page state significantly.
 - Try to be efficient, e.g. fill forms at once, or chain actions where nothing changes on the page
 - only use multiple actions if it makes sense.
-- You SHOULD ALWAYS WRAP ACTIONS IN CODE FENCES like
+- You must wrap the actions into code fences. Never provide actions without ``` and ```.
 ```
 func_name_a(arg_1=value1, arg_2=value2, ...)
 func_name_b(arg_1=value1, arg_2=value2, ...)
