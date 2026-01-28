@@ -188,19 +188,15 @@ def extract_json_from_model_markdown_output(content: str) -> dict:
         'cwd': result.get('Working Directory', '')
     }
 
-    action_section = result.get('Action', '')
+    # ✅ 修改点：不再只从 'Action' 区域提取，而是从整个原始 content 提取
+    code_blocks = extract_fenced_code_blocks(content)
 
-    # Extract fenced code blocks from Action
-    code_blocks = extract_fenced_code_blocks(action_section)
-    logger.debug(f"Extracted code blocks: {code_blocks}")
+    logger.debug(f"Extracted code blocks from full content: {code_blocks}")
 
     actions = []
     for block in code_blocks:
         calls = parse_kwargs_loose(block)
         actions.extend(calls)
-        
-        # for call_node in calls:
-        #     actions.append(ast_call_to_dict(call_node))
 
     logger.info(f"Actions: {actions}")
 
