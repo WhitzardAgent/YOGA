@@ -56,7 +56,7 @@ class Agent:
         all_spaces = [control_space, self.thinking_space] + action_spaces
         self.action_space = UnionActionSpace(all_spaces)
         
-        self.agent_type = "researcher"
+        self.agent_type = "latex_editor"
         
         # 动态生成
         self.system_prompt = PromptFactory.get_system_prompt(
