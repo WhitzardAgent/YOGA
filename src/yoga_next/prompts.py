@@ -97,9 +97,6 @@ DYNAMIC PLANNING: Use sequential_thinking to break down the goal. If you encount
 ### Observation
 ... (The feedback from the environment when you invoke the action)
 
-# Function Signature of the Actions
-{func_signature}
-
 RESPONSE FORMAT: You must ALWAYS respond with the following Markdown format:
 ### Current State
 Analyze the current elements and the image to check if the previous goals/actions are successful like intended by the task. Mention if something unexpected happened. Shortly state why/why not
@@ -111,7 +108,7 @@ Description of what has been done and what you need to remember based on the pre
 What needs to be done with the next immediate action
 
 ### Action
-Invkoe the actions as functions in sequence:
+Invkoe the actions as functions in sequence (e.g., func_name_a should be in the available tools):
 ```
 func_name_a(arg_1=value1, arg_2=value2, ...)
 ... more actions in sequence
@@ -133,6 +130,11 @@ func_name_b(arg_1=value1, arg_2=value2, ...)
 - Try to be efficient, e.g. fill forms at once, or chain actions where nothing changes on the page
 - only use multiple actions if it makes sense.
 
+------------ List of Available Tools ------------ 
+
+{func_signature}
+
+------------ List of Available Tools ------------ 
 
 3. TASK COMPLETION:
 
