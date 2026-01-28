@@ -112,6 +112,11 @@ class Agent:
             lines.append(f"{icon} [grey70]T#{td.thought_number}:[/grey70] {summary}")
         return "\n".join(lines)
 
+    def _extract_think_tag(self, text: str) -> str:
+        import re
+        match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
     def _truncate_observation(self, content: str, max_lines: int = 15, keep: int = 7) -> str:
         """自动截断过长的 Observation"""
         lines = content.splitlines()
@@ -160,36 +165,69 @@ class Agent:
         """使用 Columns/Table 布局展示 Reasoning 和 Execution Plan"""
         if not self.display:
             return
-        
+
+        raw_output = parsed_json.get('raw_model_output', '')
+        think_content = self._extract_think_tag(raw_output)
+
         curr_state = parsed_json.get('current_state', {})
-        memory = curr_state.get('memory', '...')
         next_goal = curr_state.get('next_goal', '...')
-        
-        logic_panel = Panel(
-            Text(f"{next_goal}\n\n{memory}", style="italic grey70"),
-            title="[bold magenta]🤔 Reasoning[/bold magenta]",
+        memory = self.memory.get_working_memory()
+
+        if think_content:
+            think_panel = Panel(
+                Text(think_content, style="italic cyan"),
+                title="[bold cyan]🧠 Internal Thought[/bold cyan]",
+                border_style="cyan",
+                subtitle="Mental Sandbox",
+                expand=True
+            )
+            self.display.console.print(think_panel)
+
+        status_table = Table.grid(expand=True)
+        status_table.add_column(ratio=1)
+        status_table.add_column(ratio=1)
+
+        memory_panel = Panel(
+            Text(str(memory), style="grey70"),
+            title="[bold magenta]💾 Working Memory[/bold magenta]",
             border_style="magenta",
             expand=True
         )
-        
-        action_table = Table(box=box.SIMPLE_HEAD, expand=True)
-        action_table.add_column("#", style="dim", width=2)
-        action_table.add_column("Action", style="bold yellow")
+
+        goal_panel = Panel(
+            Text(str(next_goal), style="bold white"),
+            title="[bold blue]🎯 Next Goal[/bold blue]",
+            border_style="blue",
+            expand=True
+        )
+
+        status_table.add_row(memory_panel, goal_panel)
+        self.display.console.print(status_table)
+
+        action_table = Table(box=box.ROUNDED, expand=True, show_header=True, header_style="bold yellow")
+        action_table.add_column("#", style="dim", width=3, justify="center")
+        action_table.add_column("Action", style="bold yellow", width=20)
         action_table.add_column("Parameters", style="green", overflow="fold")
-        
+
+        import json
         for i, act in enumerate(actions):
-            params = str(act['action_params'])
+            params = act['action_params']
+            if isinstance(params, dict) and len(params) > 1:
+                params_str = json.dumps(params, indent=2, ensure_ascii=False)
+            else:
+                params_str = str(params)
+
             action_table.add_row(
                 str(i+1),
                 act['action_name'],
-                params
+                params_str
             )
-        
-        combined_content = Table.grid(expand=True)
-        combined_content.add_row(logic_panel)
-        combined_content.add_row(Panel(action_table, title="[bold green]🚀 Execution Plan[/bold green]", border_style="green"))
-        
-        self.display.console.print(combined_content)
+
+        self.display.console.print(Panel(
+            action_table,
+            title="[bold green]🚀 Execution Plan[/bold green]",
+            border_style="green"
+        ))
 
     def create_state(self, 
                      task: Task, 

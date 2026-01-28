@@ -408,3 +408,48 @@ class EditActionSpace(ActionSpace):
 
         output = "\n".join(tree_lines)
         return {"status": "success", "stdout": output}
+
+    async def _handle_replace_lines(self, path: str, start_line: int, end_line: int, replacement: str = "") -> Dict[str, Any]:
+        """Replace a range of lines with new content.
+
+        Useful when str_replace fails due to whitespace differences.
+        Line numbers are 1-indexed (inclusive range).
+
+        :param path: Path relative to the workspace root (e.g., 'src/main.py').
+        :param start_line: Starting line number (1-indexed, must be > 0).
+        :param end_line: Ending line number (inclusive, must be >= start_line).
+        :param replacement: Text to replace the specified lines with.
+        :return: Confirmation with unified diff showing changes.
+        """
+        if start_line <= 0:
+            return {"status": "error", "message": f"start_line must be > 0, got {start_line}."}
+        if end_line < start_line:
+            return {"status": "error", "message": f"end_line ({end_line}) must be >= start_line ({start_line})."}
+
+        resolved_path = self._resolve_path(path)
+
+        file_result = await self.env.read_file(resolved_path)
+        if file_result.get("status") == "error":
+            return file_result
+        old_content = file_result.get("content") or file_result.get("stdout") or ""
+
+        lines = old_content.split("\n")
+        n_lines = len(lines)
+
+        if start_line > n_lines:
+            return {"status": "error", "message": f"start_line {start_line} exceeds file length ({n_lines} lines)."}
+        if end_line > n_lines:
+            return {"status": "error", "message": f"end_line {end_line} exceeds file length ({n_lines} lines)."}
+
+        new_lines = lines[:start_line - 1] + [replacement] + lines[end_line:]
+        new_content = "\n".join(new_lines)
+
+        await self.env.write_file(resolved_path, new_content)
+
+        diff_output = self._generate_unified_diff(old_content, new_content, path)
+
+        output = f"Lines {start_line}-{end_line} replaced in {path}"
+        if diff_output:
+            output += f"\n\n### 📝 Applied Changes (Unified Diff):\n{diff_output}"
+
+        return {"status": "success", "stdout": output}
