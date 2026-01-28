@@ -58,11 +58,10 @@ async def run_latex_paper_optimization(project_dir_str: str, main_file: str = "m
     3.  **Technical & Mathematical Rigor**: 
         - Scrutinize the Methodology for notation consistency. Audit all formal environments (Theorems, Algorithms, Lemmas). 
         - Ensure every symbol is defined and every derivation is aesthetically and logically flawless.
-    4.  **Evidence & Currency Check**: 
-        - Verify bibliography timeliness (2024-2025). Identify missing seminal works that reviewers might cite as "significant omissions."
+    4.  **Evidence & Analysis**: 
         - Ensure every empirical claim is backed by a valid citation or rigorous experimental data.
-    5.  **Submission Integrity & PDF Verification**: Every conceptual refinement must be verified against the compiled output. You are responsible for ensuring a bug-free, perfectly formatted submission.
-    6.  **The Mentor's Log**: Document every strategic intervention and its pedagogical rationale in `editing_log.md`. 
+        - Ensure the writing of the result analysis is highly insightful.
+    5.  **The Mentor's Log**: Document every strategic intervention and its pedagogical rationale in `editing_log.md`. 
 
     CORE MANDATE (The "Award-Winning" Threshold):
     - **Never call `done` prematurely.** You must continue iterating and refining as long as you identify any weakness in logic, notation, narrative, or formatting.

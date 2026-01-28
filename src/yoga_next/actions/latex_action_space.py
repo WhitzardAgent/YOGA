@@ -9,7 +9,7 @@ WHITELIST_ACTIONS = {
     "map_project",
     "view_tex_env",
     "edit_tex_env",
-    "check_citations",
+    # "check_citations",
     # "compile_and_diagnose",
     "append_edit_rationale"
 }
@@ -253,119 +253,119 @@ class LatexEditorActionSpace(ActionSpace):
 
         return {"status": "success", "stdout": output}
 
-    async def _handle_check_citations(self, tex_path: str, bib_path: str = None) -> Dict[str, Any]:
-        """Check citation consistency between .tex and .bib files.
+    # async def _handle_check_citations(self, tex_path: str, bib_path: str = None) -> Dict[str, Any]:
+    #     """Check citation consistency between .tex and .bib files.
 
-        Extracts all \\cite{} keys from the .tex file and compares against
-        the .bib file to find missing or unused entries.
+    #     Extracts all \\cite{} keys from the .tex file and compares against
+    #     the .bib file to find missing or unused entries.
 
-        :param tex_path: Path to the .tex file relative to workspace root.
-        :param bib_path: Optional path to the .bib file. If not provided, searches for .bib in same directory.
-        :return: Missing citations and unused bib entries.
-        """
-        tex_content = await self._read_file_content(tex_path)
+    #     :param tex_path: Path to the .tex file relative to workspace root.
+    #     :param bib_path: Optional path to the .bib file. If not provided, searches for .bib in same directory.
+    #     :return: Missing citations and unused bib entries.
+    #     """
+    #     tex_content = await self._read_file_content(tex_path)
 
-        cite_pattern = re.compile(r'\\cite\{([^}]+)\}')
-        tex_citations = set()
-        for match in cite_pattern.finditer(tex_content):
-            keys = match.group(1).split(',')
-            for key in keys:
-                tex_citations.add(key.strip())
+    #     cite_pattern = re.compile(r'\\cite\{([^}]+)\}')
+    #     tex_citations = set()
+    #     for match in cite_pattern.finditer(tex_content):
+    #         keys = match.group(1).split(',')
+    #         for key in keys:
+    #             tex_citations.add(key.strip())
 
-        bib_keys = set()
-        if bib_path:
-            bib_content = await self._read_file_content(bib_path)
-        else:
-            tex_dir = os.path.dirname(self._resolve_path(tex_path))
-            bib_files = [f for f in os.listdir(tex_dir) if f.endswith('.bib')]
-            if bib_files:
-                bib_content = await self._read_file_content(os.path.join(tex_dir, bib_files[0]))
-            else:
-                bib_content = ""
+    #     bib_keys = set()
+    #     if bib_path:
+    #         bib_content = await self._read_file_content(bib_path)
+    #     else:
+    #         tex_dir = os.path.dirname(self._resolve_path(tex_path))
+    #         bib_files = [f for f in os.listdir(tex_dir) if f.endswith('.bib')]
+    #         if bib_files:
+    #             bib_content = await self._read_file_content(os.path.join(tex_dir, bib_files[0]))
+    #         else:
+    #             bib_content = ""
 
-        entry_pattern = re.compile(r'@(\w+)\s*\{([^,]+),')
-        for match in entry_pattern.finditer(bib_content):
-            bib_keys.add(match.group(2).strip())
+    #     entry_pattern = re.compile(r'@(\w+)\s*\{([^,]+),')
+    #     for match in entry_pattern.finditer(bib_content):
+    #         bib_keys.add(match.group(2).strip())
 
-        missing = tex_citations - bib_keys
-        unused = bib_keys - tex_citations
+    #     missing = tex_citations - bib_keys
+    #     unused = bib_keys - tex_citations
 
-        output = "### 📚 Citation Check Report\n\n"
+    #     output = "### 📚 Citation Check Report\n\n"
 
-        if missing:
-            output += f"**Missing in .bib ({len(missing)}):**\n" + "\n".join([f"- `{k}`" for k in sorted(missing)]) + "\n\n"
-        else:
-            output += "**All cited references are present in .bib file.**\n\n"
+    #     if missing:
+    #         output += f"**Missing in .bib ({len(missing)}):**\n" + "\n".join([f"- `{k}`" for k in sorted(missing)]) + "\n\n"
+    #     else:
+    #         output += "**All cited references are present in .bib file.**\n\n"
 
-        if unused:
-            output += f"**Unused in .tex ({len(unused)}):**\n" + "\n".join([f"- `{k}`" for k in sorted(unused)]) + "\n"
-        else:
-            output += "**All .bib entries are referenced in .tex file.**\n"
+    #     if unused:
+    #         output += f"**Unused in .tex ({len(unused)}):**\n" + "\n".join([f"- `{k}`" for k in sorted(unused)]) + "\n"
+    #     else:
+    #         output += "**All .bib entries are referenced in .tex file.**\n"
 
-        return {"status": "success", "stdout": output}
+    #     return {"status": "success", "stdout": output}
 
-    async def _handle_compile_and_diagnose(self, tex_path: str, engine: str = "pdflatex") -> Dict[str, Any]:
-        """Compile LaTeX and extract diagnostics from .log file.
+    # async def _handle_compile_and_diagnose(self, tex_path: str, engine: str = "pdflatex") -> Dict[str, Any]:
+    #     """Compile LaTeX and extract diagnostics from .log file.
 
-        :param tex_path: Path to the .tex file relative to workspace root.
-        :param engine: Compiler to use ('pdflatex' or 'latexmk'). Default: pdflatex.
-        :return: Compilation result with extracted errors and warnings.
-        """
-        import subprocess
-        import time
+    #     :param tex_path: Path to the .tex file relative to workspace root.
+    #     :param engine: Compiler to use ('pdflatex' or 'latexmk'). Default: pdflatex.
+    #     :return: Compilation result with extracted errors and warnings.
+    #     """
+    #     import subprocess
+    #     import time
 
-        resolved_path = self._resolve_path(tex_path)
-        tex_dir = os.path.dirname(resolved_path)
-        base_name = os.path.splitext(os.path.basename(resolved_path))[0]
-        log_path = os.path.join(tex_dir, f"{base_name}.log")
+    #     resolved_path = self._resolve_path(tex_path)
+    #     tex_dir = os.path.dirname(resolved_path)
+    #     base_name = os.path.splitext(os.path.basename(resolved_path))[0]
+    #     log_path = os.path.join(tex_dir, f"{base_name}.log")
 
-        cmd = [engine, "-interaction=nonstopmode", "-halt-on-error", resolved_path]
-        if engine == "latexmk":
-            cmd = ["latexmk", "-pdf", "-interaction=nonstopmode", resolved_path]
+    #     cmd = [engine, "-interaction=nonstopmode", "-halt-on-error", resolved_path]
+    #     if engine == "latexmk":
+    #         cmd = ["latexmk", "-pdf", "-interaction=nonstopmode", resolved_path]
 
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                cwd=tex_dir
-            )
-        except subprocess.TimeoutExpired:
-            return {"status": "error", "message": "Compilation timed out (120s)."}
+    #     try:
+    #         result = subprocess.run(
+    #             cmd,
+    #             capture_output=True,
+    #             text=True,
+    #             timeout=120,
+    #             cwd=tex_dir
+    #         )
+    #     except subprocess.TimeoutExpired:
+    #         return {"status": "error", "message": "Compilation timed out (120s)."}
 
-        output_lines = []
-        output_lines.append(f"**Compiler:** {engine}")
-        output_lines.append(f"**Return Code:** {result.returncode}")
+    #     output_lines = []
+    #     output_lines.append(f"**Compiler:** {engine}")
+    #     output_lines.append(f"**Return Code:** {result.returncode}")
 
-        if os.path.exists(log_path):
-            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                log_content = f.read()
+    #     if os.path.exists(log_path):
+    #         with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+    #             log_content = f.read()
 
-            error_lines = []
-            warning_count = 0
+    #         error_lines = []
+    #         warning_count = 0
 
-            for line in log_content.splitlines():
-                if re.search(r'^!|error', line, re.IGNORECASE):
-                    error_lines.append(line.strip())
-                elif re.search(r'warning', line, re.IGNORECASE):
-                    warning_count += 1
+    #         for line in log_content.splitlines():
+    #             if re.search(r'^!|error', line, re.IGNORECASE):
+    #                 error_lines.append(line.strip())
+    #             elif re.search(r'warning', line, re.IGNORECASE):
+    #                 warning_count += 1
 
-            output_lines.append(f"**Log File:** {log_path}")
+    #         output_lines.append(f"**Log File:** {log_path}")
 
-            if error_lines:
-                output_lines.append(f"\n**Errors ({len(error_lines)}):**\n")
-                for err in error_lines[:20]:
-                    output_lines.append(f"```\n{err}\n```")
-                if len(error_lines) > 20:
-                    output_lines.append(f"\n... and {len(error_lines) - 20} more errors")
-            else:
-                output_lines.append("\n**No errors found in log.**")
+    #         if error_lines:
+    #             output_lines.append(f"\n**Errors ({len(error_lines)}):**\n")
+    #             for err in error_lines[:20]:
+    #                 output_lines.append(f"```\n{err}\n```")
+    #             if len(error_lines) > 20:
+    #                 output_lines.append(f"\n... and {len(error_lines) - 20} more errors")
+    #         else:
+    #             output_lines.append("\n**No errors found in log.**")
 
-            output_lines.append(f"\n**Warnings:** {warning_count}")
+    #         output_lines.append(f"\n**Warnings:** {warning_count}")
 
-        output = "\n".join(output_lines)
-        return {"status": "success", "stdout": output}
+    #     output = "\n".join(output_lines)
+    #     return {"status": "success", "stdout": output}
 
     async def _handle_append_edit_rationale(self, note_entry: str, file_name: str, edit_type: str = "General", notebook_name: str = "editing_log") -> Dict[str, Any]:
         """Append an editing rationale to the editing log.
