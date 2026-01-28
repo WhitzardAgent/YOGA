@@ -195,18 +195,21 @@ class ResearchActionSpace(ActionSpace):
 
         return {"status": "success", "stdout": output}
 
-    async def _handle_append_to_notebook(self, note_entry: str, category: str = "general") -> Dict[str, Any]:
-        """Append a note to research_notes.md in Markdown format.
+    async def _handle_append_to_notebook(self, note_entry: str, category: str = "general", notebook_name: str = "research_notes") -> Dict[str, Any]:
+        """Append a note to a markdown notebook in Markdown format.
 
         :param note_entry: The note content to save.
         :param category: Category tag (e.g., 'hypothesis', 'observation', 'insight', 'todo').
+        :param notebook_name: Name of the notebook file (without .md extension).
         :return: Confirmation of note saved.
         """
         from datetime import datetime
         import os
 
         workspace_root = self._get_workspace_root()
-        notes_path = os.path.join(workspace_root, "research_notes.md")
+        if not notebook_name.endswith(".md"):
+            notebook_name += ".md"
+        notes_path = os.path.join(workspace_root, notebook_name)
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         markdown_entry = f"## [{category.title()}] - {timestamp}\n\n{note_entry}\n\n---\n\n"
@@ -214,4 +217,4 @@ class ResearchActionSpace(ActionSpace):
         with open(notes_path, "a", encoding="utf-8") as f:
             f.write(markdown_entry)
 
-        return {"status": "success", "stdout": f"Note appended to research_notes.md [{category}]"}
+        return {"status": "success", "stdout": f"Note appended to {notebook_name} [{category}]"}
