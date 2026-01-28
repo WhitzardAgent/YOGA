@@ -25,6 +25,7 @@ async def run_research_backbone_distillation(paper_path_str: str):
 
     workspace = paper_abs_path.parent
     paper_name = paper_abs_path.name
+    paper_stem = paper_abs_path.stem  # 获取不带扩展名的文件名
 
     # 2. Environment & Agent Config
     local_env_config = {
@@ -58,7 +59,7 @@ async def run_research_backbone_distillation(paper_path_str: str):
     3. Structural Evidence: Use `extract_all_tables` to find empirical proof.
     
     FINAL GOAL:
-    Before calling `done`, review your `research_notes.md`. Your final response must present 
+    Before calling `done`, review your research_notes_{paper_stem}.md. Your final response must present 
     a synthesized, hierarchical backbone of the paper's intellectual contribution.
     """
     
@@ -74,8 +75,8 @@ async def run_research_backbone_distillation(paper_path_str: str):
         result = await agent.execute(task)
         log_info(f"✅ Distillation Finished. Summary: {result}")
         
-        # Physical Verification of the Markdown Notebook
-        notebook_path = workspace / "research_notes.md"
+        # Physical Verification of the Markdown Notebook - 使用动态文件名
+        notebook_path = workspace / f"research_notes_{paper_stem}.md"
         if notebook_path.exists():
             log_info(f"✨ Successfully generated Thought Skeleton at: {notebook_path}")
             # Optional: Print the first few lines of the notes
