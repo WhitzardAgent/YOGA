@@ -114,10 +114,10 @@ What needs to be done with the next immediate action
 
 ### Action
 Invkoe the actions as functions in sequence (e.g., func_name_a should be in the available tools):
-```
+<action>
 func_name_a(arg_1=value1, arg_2=value2, ...)
 ... more actions in sequence
-```
+</action>
 
 ### Environment State Update
 Update the environment state with the predicted state after the action.
@@ -125,22 +125,22 @@ Update the environment state with the predicted state after the action.
 ------------ NOTICE ------------ 
 1. You can specify multiple actions in the list to be executed in sequence. But always specify only one action name per item. Use maximum {max_actions} actions per sequence. Invoke the functions by sending ALL the ARGUMENTS as keywords.) 
 Common action sequences in python function call format, e.g., 
-```
+<action>
 func_name_a(arg_1=value1, arg_2=value2, ...)
 func_name_b(arg_1=value1, arg_2=value2, ...)
 ... more actions in sequence
-```
+</action>
 - Actions are executed in the given order
 - If the page changes after an action, the sequence is interrupted and you get the new state.
 - Only provide the action sequence until an action which changes the page state significantly.
 - Try to be efficient, e.g. fill forms at once, or chain actions where nothing changes on the page
 - only use multiple actions if it makes sense.
-- You must wrap the actions into code fences. Never provide actions without ``` and ```.
-```
+- You must wrap the actions into code fences. Never provide actions without <action> and </action>.
+<action>
 func_name_a(arg_1=value1, arg_2=value2, ...)
 func_name_b(arg_1=value1, arg_2=value2, ...)
 ... more actions in sequence
-```
+</action>
 
 2. TASK COMPLETION:
 - Use the done action as the last action as soon as the ultimate task is complete
