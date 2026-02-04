@@ -232,7 +232,7 @@ class DatabaseEnvironment(Environment):
         return f"Database: {self.config.get('host')}\nConnected: {self.state.get('connected', False)}"
 ```
 
-### 2. Create配套 Action Space
+### 2. Create Action Space Correspondingly
 
 ```python
 # my_actions.py
