@@ -1,60 +1,58 @@
 # Yoga-Next
 
-A modular AI Agent framework supporting multiple execution environments and tool integrations.
+一个模块化的 AI Agent 框架，支持多种执行环境和工具集成。
 
-[中文文档](README.zh.md) | English Documentation
-
-## Quick Start
+## 快速开始
 
 ```python
 from yoga_next import YogaAgent, AgentConfig
 
-# Load from config file
+# 从配置文件加载
 config = AgentConfig.from_yaml("config.yaml")
 
-# Create Agent
+# 创建 Agent
 agent = YogaAgent(agent_config=config)
 
-# Execute task
+# 执行任务
 from yoga_next.tasks import Task
-task = Task(task_id="example", instruction="Create a Python file for me")
+task = Task(task_id="example", instruction="帮我创建一个 Python 文件")
 result = await agent.execute(task)
 ```
 
-## Project Structure
+## 项目结构
 
 ```
 src/yoga_next/
-├── core/                    # Core modules
-│   ├── agent_core.py        # Agent core execution logic
-│   ├── action_executor.py   # Action executor
-│   ├── memory_manager.py    # Memory management
-│   ├── state_builder.py     # State building
-│   ├── renderer.py          # UI rendering
-│   └── formatter.py         # Output formatting
-├── actions/                 # Action Spaces (tool sets)
-│   ├── base.py             # ActionSpace base class
-│   ├── edit_action_space.py    # File editing
-│   ├── local_action_space.py   # Local shell
-│   ├── remote_server_action_space.py  # Remote servers
+├── core/                    # 核心模块
+│   ├── agent_core.py        # Agent 核心执行逻辑
+│   ├── action_executor.py   # 动作执行器
+│   ├── memory_manager.py    # 记忆管理
+│   ├── state_builder.py     # 状态构建
+│   ├── renderer.py          # UI 渲染
+│   └── formatter.py         # 输出格式化
+├── actions/                 # Action Spaces（工具集）
+│   ├── base.py             # ActionSpace 基类
+│   ├── edit_action_space.py    # 文件编辑
+│   ├── local_action_space.py   # 本地 shell
+│   ├── remote_server_action_space.py  # 远程服务器
 │   ├── jupyter_notebook_action_space.py  # Jupyter
-│   └── thinking.py         # Thinking space
-├── environments/           # Execution environments
+│   └── thinking.py         # 思考空间
+├── environments/           # 执行环境
 │   ├── base.py
 │   ├── local_env.py
 │   ├── remote_server_env.py
 │   └── jupyter_notebook_env.py
-├── model.py               # LLM model wrapper
-├── prompts.py             # Prompt factory
-├── tasks.py               # Task definitions
-└── yoga_agent.py          # Main entry point
+├── model.py               # LLM 模型封装
+├── prompts.py             # Prompt 工厂
+├── tasks.py               # 任务定义
+└── yoga_agent.py          # 主入口
 ```
 
-## Incremental Development Guide
+## 增量开发指南
 
-### 1. Adding a New Action Space
+### 1. 添加新的 Action Space
 
-Follow the pattern from `edit_action_space.py`:
+参考 `edit_action_space.py` 的实现模式：
 
 ```python
 from yoga_next.actions import ActionSpace
@@ -65,31 +63,31 @@ class MyActionSpace(ActionSpace):
         super().__init__(action_space_name, env)
     
     async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute action by dispatching to _handle_* methods via reflection"""
+        """执行动作，通过反射调用 _handle_* 方法"""
         handler = getattr(self, f"_handle_{action_name}", None)
         if not handler:
             return {"status": "error", "message": f"Action '{action_name}' not supported."}
         return await handler(**param_dict)
     
     async def _handle_my_action(self, param1: str, param2: int = 0) -> Dict[str, Any]:
-        """Action description
+        """动作描述
         
-        :param param1: Description of parameter 1
-        :param param2: Description of parameter 2
+        :param param1: 参数1描述
+        :param param2: 参数2描述
         
         Returns:
-            Result dictionary
+            执行结果字典
         """
-        # Implementation logic
+        # 实现逻辑
         return {"status": "success", "output": "..."}
 ```
 
-**Key Conventions**:
-- All callable actions are named with `_handle_` prefix
-- Use docstrings to describe parameters and return values
-- Return format standardized to `{"status": "success|error", ...}`
+**关键约定**：
+- 所有可调用动作以 `_handle_` 开头命名
+- 使用 docstring 描述参数和返回值
+- 返回格式统一为 `{"status": "success|error", ...}`
 
-### 2. Adding a New Environment
+### 2. 添加新的 Environment
 
 ```python
 from yoga_next.environments import Environment
@@ -100,55 +98,55 @@ class MyEnvironment(Environment):
         self.workspace_root = config.get("workspace_root", ".")
     
     async def setup(self):
-        """Initialize environment connection"""
+        """初始化环境连接"""
         pass
     
     async def run_shell(self, command: str) -> dict:
-        """Execute shell command"""
+        """执行 shell 命令"""
         pass
     
     async def read_file(self, path: str) -> dict:
-        """Read file"""
+        """读取文件"""
         pass
     
     async def write_file(self, path: str, content: str) -> dict:
-        """Write file"""
+        """写入文件"""
         pass
     
     def get_observation(self) -> str:
-        """Get current environment state description"""
+        """获取环境当前状态描述"""
         return f"Workspace: {self.workspace_root}"
 ```
 
-### 3. Extending Agent Core Functionality
+### 3. 扩展 Agent 核心功能
 
-Inherit from `AgentCore` to add custom logic:
+继承 `AgentCore` 添加自定义逻辑：
 
 ```python
 from yoga_next.core import AgentCore
 
 class CustomAgent(AgentCore):
     async def execute_single_task(self, task, task_idx=-1, max_steps=100):
-        # Custom execution logic
-        # Can call parent methods or completely override
+        # 自定义执行逻辑
+        # 可以调用父类方法或完全重写
         return await super().execute_single_task(task, task_idx, max_steps)
 ```
 
-### 4. Adding a New Prompt Role
+### 4. 添加新的 Prompt 角色
 
-Add in `prompts.py`:
+在 `prompts.py` 中添加：
 
 ```python
 class PromptFactory:
     AGENT_ROLES = {
         "my_role": """
 # Role: My Custom Role
-...role description...
+...角色描述...
 """,
     }
 ```
 
-Usage:
+使用：
 ```python
 agent = YogaAgent(
     agent_config=config,
@@ -156,38 +154,38 @@ agent = YogaAgent(
 )
 ```
 
-## Core Concepts
+## 核心概念
 
 ### Action Space
 
-Action Space is a collection of tools the Agent can call. Each Action Space:
-- Encapsulates a group of related operations (e.g., file operations, shell commands)
-- Unified invocation via `execute(action_name, params)`
-- Implements specific functionality using `_handle_*` methods
+Action Space 是 Agent 可调用的工具集合。每个 Action Space：
+- 封装一组相关操作（如文件操作、shell 命令）
+- 通过 `execute(action_name, params)` 统一调用
+- 使用 `_handle_*` 方法实现具体功能
 
 ### Environment
 
-Environment provides underlying execution capabilities:
-- `LocalEnvironment`: Local shell and file operations
-- `RemoteServerEnvironment`: Connect to remote servers via SSH/AgentBridge
-- `JupyterNotebookEnvironment`: Jupyter kernel interaction
+Environment 提供底层执行能力：
+- `LocalEnvironment`: 本地 shell 和文件操作
+- `RemoteServerEnvironment`: 通过 SSH/AgentBridge 连接远程服务器
+- `JupyterNotebookEnvironment`: Jupyter 内核交互
 
 ### Memory System
 
-- `Memory`: Short-term conversation history
-- `MemoryStream`: Long-term memory stream, records all interactions
-- `MemoryManager`: Unified memory operations management
+- `Memory`: 短期对话历史
+- `MemoryStream`: 长期记忆流，记录所有交互
+- `MemoryManager`: 统一管理记忆操作
 
 ### State Builder
 
-Builds Agent input state, including:
-- Task goal
-- Historical thinking trajectory
-- Long-term memory summary
-- Previous step execution results
-- Environment state
+构建 Agent 的输入状态，包含：
+- 任务目标
+- 历史思考轨迹
+- 长期记忆摘要
+- 上一步执行结果
+- 环境状态
 
-## Configuration Example
+## 配置示例
 
 ```yaml
 # config.yaml
@@ -196,30 +194,27 @@ model_name: "gpt-4"
 api_key: "sk-..."
 ```
 
-
-
-## Installation
-
-```bash
-pip install -e .
-
-# Development dependencies
-pip install -e ".[dev]"
-```
-
-## Give a Trial
+## 试试看
 
 ```bash
 python tests/test_edit_agent.py
 ```
 
-## Architecture Diagram
+## 依赖安装
+
+```bash
+pip install -e .
+
+# 开发依赖
+pip install -e ".[dev]"
+```
+
+## 架构图
 
 ```
 ┌─────────────────────────────────────────┐
 │              YogaAgent                  │
-│  (Inherits AgentCore, auto-initializes  │
-│   all modules)                          │
+│  (继承 AgentCore, 自动初始化所有模块)    │
 └─────────────────────────────────────────┘
                    │
     ┌──────────────┼──────────────┐
@@ -237,13 +232,13 @@ python tests/test_edit_agent.py
               └─────────┘  └──────────┘  └──────────┘
 ```
 
-## Contributing
+## 贡献指南
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Create a Pull Request
+1. Fork 仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
 
 ## License
 
