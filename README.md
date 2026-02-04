@@ -40,15 +40,38 @@ src/yoga_next/
 │   ├── jupyter_notebook_action_space.py  # Jupyter
 │   └── thinking.py         # Thinking space
 ├── environments/           # Execution environments
-│   ├── base.py
-│   ├── local_env.py
-│   ├── remote_server_env.py
-│   └── jupyter_notebook_env.py
+│   ├── base.py            # Environment abstract base class
+│   ├── local_env.py       # Local environment
+│   ├── remote_server_env.py  # Remote server environment
+│   ├── jupyter_notebook_env.py  # Jupyter environment
+│   └── electron_app_env.py # Electron app environment
 ├── model.py               # LLM model wrapper
 ├── prompts.py             # Prompt factory
 ├── tasks.py               # Task definitions
 └── yoga_agent.py          # Main entry point
 ```
+
+## Core Concepts
+
+### Environment
+
+Environment is the underlying execution environment for Agent actions, encapsulating resource connections and operation interfaces.
+
+**Core Methods**:
+
+| Method | Description | Required |
+|--------|-------------|----------|
+| `get_observation()` | Get current environment state description | No (defaults to empty string) |
+| `setup()` | Initialize resources (connections, etc.) | No |
+| `close()` | Clean up resources | No |
+| `update_state()` | Update internal state | No |
+
+**Available Environments**:
+
+1. **LocalEnvironment** (`local_env.py`) - Local development environment
+2. **RemoteServerEnvironment** (`remote_server_env.py`) - Remote server (SSH)
+3. **JupyterNotebookEnvironment** (`jupyter_notebook_env.py`) - Jupyter notebook
+4. **ElectronAppEnvironment** (`electron_app_env.py`) - Electron application
 
 ## Incremental Development Guide
 
@@ -91,33 +114,50 @@ class MyActionSpace(ActionSpace):
 
 ### 2. Adding a New Environment
 
+Implement the `Environment` abstract base class:
+
 ```python
 from yoga_next.environments import Environment
+from typing import Any, Dict
 
 class MyEnvironment(Environment):
-    def __init__(self, config: dict):
+    """My custom environment"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__()
         self.config = config
         self.workspace_root = config.get("workspace_root", ".")
+        # Initialize other state
+        self.state["workspace"] = self.workspace_root
     
     async def setup(self):
-        """Initialize environment connection"""
+        """Initialize environment resources (connections, etc.)"""
         pass
     
-    async def run_shell(self, command: str) -> dict:
-        """Execute shell command"""
-        pass
-    
-    async def read_file(self, path: str) -> dict:
-        """Read file"""
-        pass
-    
-    async def write_file(self, path: str, content: str) -> dict:
-        """Write file"""
+    async def close(self):
+        """Clean up resources"""
         pass
     
     def get_observation(self) -> str:
         """Get current environment state description"""
-        return f"Workspace: {self.workspace_root}"
+        return f"Workspace: {self.workspace_root}\nState: {dict(self.state)}"
+```
+
+**Using Environment in Action Space**:
+
+```python
+from yoga_next.actions import ActionSpace
+from typing import Dict, Any
+
+class MyActionSpace(ActionSpace):
+    def __init__(self, action_space_name: str, env: MyEnvironment):
+        super().__init__(action_space_name, env)
+    
+    async def _handle_my_action(self, param: str) -> Dict[str, Any]:
+        """Perform operation using environment"""
+        # Access Environment via self.env
+        result = await self.env.run_my_operation(param)
+        return {"status": "success", "result": result}
 ```
 
 ### 3. Extending Agent Core Functionality
@@ -156,36 +196,109 @@ agent = YogaAgent(
 )
 ```
 
-## Core Concepts
+## Complete Example
 
-### Action Space
+### 1. Create Custom Environment
 
-Action Space is a collection of tools the Agent can call. Each Action Space:
-- Encapsulates a group of related operations (e.g., file operations, shell commands)
-- Unified invocation via `execute(action_name, params)`
-- Implements specific functionality using `_handle_*` methods
+```python
+# my_env.py
+from yoga_next.environments import Environment
+import asyncio
 
-### Environment
+class DatabaseEnvironment(Environment):
+    """Database operation environment"""
+    
+    def __init__(self, config: dict):
+        super().__init__()
+        self.connection = None
+        self.config = config
+    
+    async def setup(self):
+        """Establish database connection"""
+        # Implement database connection logic
+        self.connection = await self._connect()
+        self.state["connected"] = True
+    
+    async def close(self):
+        """Close database connection"""
+        if self.connection:
+            await self.connection.close()
+    
+    async def _connect(self):
+        """Actual connection logic"""
+        pass
+    
+    def get_observation(self) -> str:
+        return f"Database: {self.config.get('host')}\nConnected: {self.state.get('connected', False)}"
+```
 
-Environment provides underlying execution capabilities:
-- `LocalEnvironment`: Local shell and file operations
-- `RemoteServerEnvironment`: Connect to remote servers via SSH/AgentBridge
-- `JupyterNotebookEnvironment`: Jupyter kernel interaction
+### 2. Create配套 Action Space
 
-### Memory System
+```python
+# my_actions.py
+from yoga_next.actions import ActionSpace
+from typing import Dict, Any
 
-- `Memory`: Short-term conversation history
-- `MemoryStream`: Long-term memory stream, records all interactions
-- `MemoryManager`: Unified memory operations management
+class DatabaseActionSpace(ActionSpace):
+    """Database operation toolset"""
+    
+    def __init__(self, action_space_name: str, env):
+        super().__init__(action_space_name, env)
+    
+    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
+        handler = getattr(self, f"_handle_{action_name}", None)
+        if not handler:
+            return {"status": "error", "message": f"Action '{action_name}' not supported."}
+        return await handler(**param_dict)
+    
+    async def _handle_query(self, sql: str) -> Dict[str, Any]:
+        """Execute SQL query
+        
+        :param sql: SQL query statement
+        
+        Returns:
+            Query results
+        """
+        results = await self.env.connection.execute(sql)
+        return {"status": "success", "results": results}
+    
+    async def _handle_insert(self, table: str, data: dict) -> Dict[str, Any]:
+        """Insert data
+        
+        :param table: Table name
+        :param data: Data dictionary to insert
+        """
+        await self.env.connection.insert(table, data)
+        return {"status": "success", "message": "Data inserted"}
+```
 
-### State Builder
+### 3. Compose and Use
 
-Builds Agent input state, including:
-- Task goal
-- Historical thinking trajectory
-- Long-term memory summary
-- Previous step execution results
-- Environment state
+```python
+# main.py
+from yoga_next import YogaAgent, AgentConfig
+from my_env import DatabaseEnvironment
+from my_actions import DatabaseActionSpace
+
+config = AgentConfig.from_yaml("config.yaml")
+
+# Create environment and Action Space
+db_env = DatabaseEnvironment({"host": "localhost", "port": 5432})
+db_actions = DatabaseActionSpace("db", db_env)
+
+# Create Agent
+agent = YogaAgent(
+    agent_config=config,
+    action_spaces=[db_actions]
+)
+
+# Execute task
+task = Task(
+    task_id="db_task",
+    instruction="Insert a new user record into the users table"
+)
+result = await agent.execute(task)
+```
 
 ## Configuration Example
 
@@ -197,6 +310,9 @@ api_key: "sk-..."
 ```
 
 
+# Run specific test
+pytest tests/test_edit_agent.py -v
+```
 
 ## Installation
 
@@ -205,12 +321,6 @@ pip install -e .
 
 # Development dependencies
 pip install -e ".[dev]"
-```
-
-## Give a Trial
-
-```bash
-python tests/test_edit_agent.py
 ```
 
 ## Architecture Diagram
@@ -229,12 +339,24 @@ python tests/test_edit_agent.py
 │  (LLM)  │  │ System   │  │ Spaces   │
 └─────────┘  └──────────┘  └──────────┘
                                   │
-                    ┌─────────────┼─────────────┐
-                    ▼             ▼             ▼
-              ┌─────────┐  ┌──────────┐  ┌──────────┐
-              │  Edit   │  │  Local   │  │ Jupyter  │
-              │  Space  │  │  Space   │  │  Space   │
-              └─────────┘  └──────────┘  └──────────┘
+           ┌──────────────────────┼──────────────────────┐
+           ▼                      ▼                      ▼
+    ┌─────────┐           ┌──────────┐           ┌──────────┐
+    │  Edit   │           │  Local    │           │ Jupyter   │
+    │  Space  │◄──────────►│  Space    │◄─────────►│  Space    │
+    └─────────┘           └──────────┘           └──────────┘
+           │                      │                      │
+           └──────────────────────┼──────────────────────┘
+                                  ▼
+                    ┌─────────────────────┐
+                    │   Environments       │
+                    │  ┌───────────────┐  │
+                    │  │ LocalEnv      │  │
+                    │  │ RemoteEnv     │  │
+                    │  │ JupyterEnv    │  │
+                    │  │ CustomEnv     │  │
+                    │  └───────────────┘  │
+                    └─────────────────────┘
 ```
 
 ## Contributing

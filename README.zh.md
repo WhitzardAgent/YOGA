@@ -2,6 +2,8 @@
 
 一个模块化的 AI Agent 框架，支持多种执行环境和工具集成。
 
+[English](README.md) | 中文文档
+
 ## 快速开始
 
 ```python
@@ -38,15 +40,38 @@ src/yoga_next/
 │   ├── jupyter_notebook_action_space.py  # Jupyter
 │   └── thinking.py         # 思考空间
 ├── environments/           # 执行环境
-│   ├── base.py
-│   ├── local_env.py
-│   ├── remote_server_env.py
-│   └── jupyter_notebook_env.py
+│   ├── base.py            # Environment 抽象基类
+│   ├── local_env.py       # 本地环境
+│   ├── remote_server_env.py  # 远程服务器环境
+│   ├── jupyter_notebook_env.py  # Jupyter 环境
+│   └── electron_app_env.py # Electron 应用环境
 ├── model.py               # LLM 模型封装
 ├── prompts.py             # Prompt 工厂
 ├── tasks.py               # 任务定义
 └── yoga_agent.py          # 主入口
 ```
+
+## 核心概念
+
+### Environment
+
+Environment 是 Agent 执行动作的底层环境，封装了资源连接和操作接口。
+
+**核心方法**：
+
+| 方法 | 说明 | 是否必须实现 |
+|------|------|-------------|
+| `get_observation()` | 获取环境当前状态描述 | 否（默认返回空字符串） |
+| `setup()` | 初始化资源（连接等） | 否 |
+| `close()` | 清理资源 | 否 |
+| `update_state()` | 更新内部状态 | 否 |
+
+### 可用 Environment
+
+1. **LocalEnvironment** (`local_env.py`) - 本地开发环境
+2. **RemoteServerEnvironment** (`remote_server_env.py`) - 远程服务器（SSH）
+3. **JupyterNotebookEnvironment** (`jupyter_notebook_env.py`) - Jupyter 笔记本
+4. **ElectronAppEnvironment** (`electron_app_env.py`) - Electron 应用
 
 ## 增量开发指南
 
@@ -89,33 +114,50 @@ class MyActionSpace(ActionSpace):
 
 ### 2. 添加新的 Environment
 
+实现 `Environment` 抽象基类：
+
 ```python
 from yoga_next.environments import Environment
+from typing import Any, Dict
 
 class MyEnvironment(Environment):
-    def __init__(self, config: dict):
+    """我的自定义环境"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__()
         self.config = config
         self.workspace_root = config.get("workspace_root", ".")
+        # 初始化其他状态
+        self.state["workspace"] = self.workspace_root
     
     async def setup(self):
-        """初始化环境连接"""
+        """初始化环境连接等资源"""
         pass
     
-    async def run_shell(self, command: str) -> dict:
-        """执行 shell 命令"""
-        pass
-    
-    async def read_file(self, path: str) -> dict:
-        """读取文件"""
-        pass
-    
-    async def write_file(self, path: str, content: str) -> dict:
-        """写入文件"""
+    async def close(self):
+        """清理资源"""
         pass
     
     def get_observation(self) -> str:
         """获取环境当前状态描述"""
-        return f"Workspace: {self.workspace_root}"
+        return f"Workspace: {self.workspace_root}\nState: {dict(self.state)}"
+```
+
+**在 Action Space 中使用 Environment**：
+
+```python
+from yoga_next.actions import ActionSpace
+from typing import Dict, Any
+
+class MyActionSpace(ActionSpace):
+    def __init__(self, action_space_name: str, env: MyEnvironment):
+        super().__init__(action_space_name, env)
+    
+    async def _handle_my_action(self, param: str) -> Dict[str, Any]:
+        """使用环境执行操作"""
+        # 通过 self.env 访问 Environment
+        result = await self.env.run_my_operation(param)
+        return {"status": "success", "result": result}
 ```
 
 ### 3. 扩展 Agent 核心功能
@@ -154,36 +196,109 @@ agent = YogaAgent(
 )
 ```
 
-## 核心概念
+## 完整示例
 
-### Action Space
+### 1. 创建自定义 Environment
 
-Action Space 是 Agent 可调用的工具集合。每个 Action Space：
-- 封装一组相关操作（如文件操作、shell 命令）
-- 通过 `execute(action_name, params)` 统一调用
-- 使用 `_handle_*` 方法实现具体功能
+```python
+# my_env.py
+from yoga_next.environments import Environment
+import asyncio
 
-### Environment
+class DatabaseEnvironment(Environment):
+    """数据库操作环境"""
+    
+    def __init__(self, config: dict):
+        super().__init__()
+        self.connection = None
+        self.config = config
+    
+    async def setup(self):
+        """建立数据库连接"""
+        # 实现数据库连接逻辑
+        self.connection = await self._connect()
+        self.state["connected"] = True
+    
+    async def close(self):
+        """关闭数据库连接"""
+        if self.connection:
+            await self.connection.close()
+    
+    async def _connect(self):
+        """实际连接逻辑"""
+        pass
+    
+    def get_observation(self) -> str:
+        return f"Database: {self.config.get('host')}\nConnected: {self.state.get('connected', False)}"
+```
 
-Environment 提供底层执行能力：
-- `LocalEnvironment`: 本地 shell 和文件操作
-- `RemoteServerEnvironment`: 通过 SSH/AgentBridge 连接远程服务器
-- `JupyterNotebookEnvironment`: Jupyter 内核交互
+### 2. 创建配套的 Action Space
 
-### Memory System
+```python
+# my_actions.py
+from yoga_next.actions import ActionSpace
+from typing import Dict, Any
 
-- `Memory`: 短期对话历史
-- `MemoryStream`: 长期记忆流，记录所有交互
-- `MemoryManager`: 统一管理记忆操作
+class DatabaseActionSpace(ActionSpace):
+    """数据库操作工具集"""
+    
+    def __init__(self, action_space_name: str, env):
+        super().__init__(action_space_name, env)
+    
+    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
+        handler = getattr(self, f"_handle_{action_name}", None)
+        if not handler:
+            return {"status": "error", "message": f"Action '{action_name}' not supported."}
+        return await handler(**param_dict)
+    
+    async def _handle_query(self, sql: str) -> Dict[str, Any]:
+        """执行 SQL 查询
+        
+        :param sql: SQL 查询语句
+        
+        Returns:
+            查询结果
+        """
+        results = await self.env.connection.execute(sql)
+        return {"status": "success", "results": results}
+    
+    async def _handle_insert(self, table: str, data: dict) -> Dict[str, Any]:
+        """插入数据
+        
+        :param table: 表名
+        :param data: 要插入的数据字典
+        """
+        await self.env.connection.insert(table, data)
+        return {"status": "success", "message": "Data inserted"}
+```
 
-### State Builder
+### 3. 组合使用
 
-构建 Agent 的输入状态，包含：
-- 任务目标
-- 历史思考轨迹
-- 长期记忆摘要
-- 上一步执行结果
-- 环境状态
+```python
+# main.py
+from yoga_next import YogaAgent, AgentConfig
+from my_env import DatabaseEnvironment
+from my_actions import DatabaseActionSpace
+
+config = AgentConfig.from_yaml("config.yaml")
+
+# 创建环境和 Action Space
+db_env = DatabaseEnvironment({"host": "localhost", "port": 5432})
+db_actions = DatabaseActionSpace("db", db_env)
+
+# 创建 Agent
+agent = YogaAgent(
+    agent_config=config,
+    action_spaces=[db_actions]
+)
+
+# 执行任务
+task = Task(
+    task_id="db_task",
+    instruction="在 users 表中插入一条新用户数据"
+)
+result = await agent.execute(task)
+```
 
 ## 配置示例
 
@@ -224,12 +339,24 @@ pip install -e ".[dev]"
 │  (LLM)  │  │ System   │  │ Spaces   │
 └─────────┘  └──────────┘  └──────────┘
                                   │
-                    ┌─────────────┼─────────────┐
-                    ▼             ▼             ▼
-              ┌─────────┐  ┌──────────┐  ┌──────────┐
-              │  Edit   │  │  Local   │  │ Jupyter  │
-              │  Space  │  │  Space   │  │  Space   │
-              └─────────┘  └──────────┘  └──────────┘
+           ┌──────────────────────┼──────────────────────┐
+           ▼                      ▼                      ▼
+    ┌─────────┐           ┌──────────┐           ┌──────────┐
+    │  Edit   │           │  Local    │           │ Jupyter   │
+    │  Space  │◄──────────►│  Space    │◄─────────►│  Space    │
+    └─────────┘           └──────────┘           └──────────┘
+           │                      │                      │
+           └──────────────────────┼──────────────────────┘
+                                  ▼
+                    ┌─────────────────────┐
+                    │   Environments      │
+                    │  ┌───────────────┐  │
+                    │  │ LocalEnv      │  │
+                    │  │ RemoteEnv     │  │
+                    │  │ JupyterEnv    │  │
+                    │  │ CustomEnv     │  │
+                    │  └───────────────┘  │
+                    └─────────────────────┘
 ```
 
 ## 贡献指南
