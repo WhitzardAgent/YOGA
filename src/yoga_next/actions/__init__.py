@@ -7,3 +7,4 @@ from .thinking import ThinkingActionSpace
 from .edit_action_space import EditActionSpace
 from .research_action_space import ResearchActionSpace
 from .latex_action_space import LatexEditorActionSpace
+from .markdown_action_space import MarkdownActionSpace
