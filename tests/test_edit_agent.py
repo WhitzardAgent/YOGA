@@ -25,7 +25,7 @@ async def run_edit_agent_test():
         'workspace_root': str(workspace)
     }
 
-    agent_config = AgentConfig.from_yaml('/Users/morinop/coding/yoga-next/configs/config_silicon.yaml')
+    agent_config = AgentConfig.from_yaml(Path(root_path).parent / 'configs/config_silicon.yaml')
 
     env = LocalCondaEnvironment(local_env_config)
     
