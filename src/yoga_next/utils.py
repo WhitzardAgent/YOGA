@@ -43,6 +43,20 @@ def log_error(msg: str):
     typer.secho(msg, fg=typer.colors.RED, err=True)
     logger.error(msg)
 
+def extract_action_content(text):
+    """
+    从给定文本中提取所有 <action>...</action> 标签之间的内容（支持多行）。
+    
+    参数:
+        text (str): 输入的字符串，可能包含多个 <action> 块。
+    
+    返回:
+        list[str]: 所有匹配到的 action 内容列表（不包含标签本身）。
+    """
+    # 使用非贪婪匹配 .*?，并启用 re.DOTALL 使 . 匹配包括换行符在内的任意字符
+    pattern = r'<action>(.*?)</action>'
+    matches = re.findall(pattern, text, flags=re.DOTALL)
+    return matches
 
 def extract_fenced_code_blocks(text, fence='```'):
     """
@@ -168,7 +182,7 @@ def parse_kwargs_loose(code_str):
         calls.append({func_name: kwargs})
     return calls
 
-def extract_json_from_model_markdown_output(content: str) -> dict:
+def parse_model_response(content: str) -> dict:
     content = f'\n{content}'
     sections = content.split('\n### ')
     logger.debug(f'Sections: {sections}')
@@ -189,7 +203,7 @@ def extract_json_from_model_markdown_output(content: str) -> dict:
     }
 
     # ✅ 修改点：不再只从 'Action' 区域提取，而是从整个原始 content 提取
-    code_blocks = extract_fenced_code_blocks(content)
+    code_blocks = extract_action_content(content)
 
     logger.debug(f"Extracted code blocks from full content: {code_blocks}")
 

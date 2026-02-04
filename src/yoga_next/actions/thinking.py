@@ -29,12 +29,6 @@ class ThinkingActionSpace(ActionSpace):
         self.thought_history: List[ThoughtData] = []
         self.branches: Dict[str, List[ThoughtData]] = {}
 
-    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
-        handler = getattr(self, f"_handle_{action_name}", None)
-        if not handler:
-            return {"status": "error", "message": f"Action '{action_name}' not supported."}
-        return await handler(**param_dict)
-
     async def _handle_sequential_thinking(
         self,
         thought: str,

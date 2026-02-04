@@ -11,112 +11,83 @@ class RemoteServerSpace(ActionSpace):
     """
     def __init__(self, action_space_name: str, env: RemoteServerEnvironment):
         super().__init__(action_space_name, env)
-        # Define capabilities in OpenAI tool-call compatible format
-        self.capabilities = {
-            "execute_shell": {
-                "description": "Execute a shell command on the remote server.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "command": {"type": "string", "description": "The shell command to execute."}
-                    },
-                    "required": ["command"]
-                }
-            },
-            "execute_python": {
-                "description": "Execute Python code on the remote server.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "code": {"type": "string", "description": "The Python code to execute."},
-                        "remote_path": {"type": "string", "description": "Destination to store and execute the python code."}
-                    },
-                    "required": ["code", "remote_path"]
-                }
-            },
-            "sync_to_cloud": {
-                "description": "Upload local files to the remote workspace.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "local_path": {"type": "string", "description": "Local file or directory path to upload."},
-                        "remote_path": {"type": "string", "description": "Destination path on the remote server."}
-                    },
-                    "required": ["local_path", "remote_path"]
-                }
-            },
-            "sync_from_cloud": {
-                "description": "Download files from the remote server to local storage.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "remote_path": {"type": "string", "description": "Remote file or directory path to download."},
-                        "local_path": {"type": "string", "description": "Local destination path for the downloaded content."}
-                    },
-                    "required": ["remote_path", "local_path"]
-                }
-            }
+
+    async def _handle_execute_shell(self, command: str) -> Dict[str, Any]:
+        """Execute a shell command on the remote server.
+        
+        :param command: The shell command to execute.
+        
+        Returns the command output including stdout and stderr.
+        """
+        task = {
+            'type': 'shell',
+            'content': command
+        }
+        result = await self.env.bridge.execute_task(task)
+        return {
+            "status": "success",
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "return_code": result.get("return_code", 0)
         }
 
-    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_execute_python(self, code: str, remote_path: str = "/home/ubuntu/sandbox") -> Dict[str, Any]:
+        """Execute Python code on the remote server.
+        
+        :param code: The Python code to execute.
+        :param remote_path: Destination to store and execute the python code. Defaults to "/home/ubuntu/sandbox".
+        
+        Returns the execution output including stdout and stderr.
         """
-        Routes the action to the AgentBridge instance stored in the environment.
+        task = {
+            'type': 'python',
+            'content': code,
+            'params': {'remote_path': remote_path}
+        }
+        result = await self.env.bridge.execute_task(task)
+        return {
+            "status": "success",
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "return_code": result.get("return_code", 0)
+        }
+
+    async def _handle_sync_to_cloud(self, local_path: str, remote_path: str = "/home/ubuntu/sandbox") -> Dict[str, Any]:
+        """Upload local files to the remote workspace.
+        
+        :param local_path: Local file or directory path to upload.
+        :param remote_path: Destination path on the remote server. Defaults to "/home/ubuntu/sandbox".
+        
+        Returns confirmation of the sync operation.
         """
-        # 1. Ensure the remote connection is active
-        try:
-            await self.env.setup()
-        except Exception as e:
-            return {"status": "error", "message": f"Connection failed: {str(e)}"}
+        task = {
+            'type': 'sync_to_cloud',
+            'content': local_path,
+            'params': {'remote_path': remote_path}
+        }
+        result = await self.env.bridge.execute_task(task)
+        return {
+            "status": "success",
+            "message": f"Successfully synced {local_path} to {remote_path}",
+            "details": result
+        }
 
-        # 2. Map actions to AgentBridge task types
-        try:
-            if action_name == "execute_shell":
-                task = {
-                    'type': 'shell',
-                    'content': param_dict.get("command", "")
-                }
-            
-            elif action_name == "execute_python":
-                task = {
-                    'type': 'python',
-                    'content': param_dict.get("code", ""),
-                    'params': {'remote_path': param_dict.get("remote_path", "/home/ubuntu/sandbox")}
-                }
-            
-            elif action_name == "sync_to_cloud":
-                task = {
-                    'type': 'sync_to_cloud',
-                    'content': param_dict.get("local_path", ""),
-                    'params': {'remote_path': param_dict.get("remote_path", "/home/ubuntu/sandbox")}
-                }
-            
-            elif action_name == "sync_from_cloud":
-                task = {
-                    'type': 'sync_from_cloud',
-                    'content': param_dict.get("remote_path", ""),
-                    'params': {'local_path': param_dict.get("local_path", "./sandbox")}
-                }
-            
-            else:
-                return {"status": "error", "message": f"Action '{action_name}' not supported."}
-
-            # 3. Execute via the bridge (stored in env)
-            result = await self.env.bridge.execute_task(task)
-            
-            # 4. Standardize the response for the Agent's Episodic Memory
-            return {
-                "status": "success",
-                "action": action_name,
-                "output": result
-            }
-
-        except Exception as e:
-            return {
-                "status": "error",
-                "action": action_name,
-                "output": {"error_message": f"Execution failed: {str(e)}"}
-            }
-
-    def get_capabilities(self) -> Dict[str, Any]:
-        """Returns the available tools for the Agent's system prompt in OpenAI-compatible format."""
-        return self.capabilities
+    async def _handle_sync_from_cloud(self, remote_path: str, local_path: str = "./sandbox") -> Dict[str, Any]:
+        """Download files from the remote server to local storage.
+        
+        :param remote_path: Remote file or directory path to download.
+        :param local_path: Local destination path for the downloaded content. Defaults to "./sandbox".
+        
+        Returns confirmation of the download operation.
+        """
+        task = {
+            'type': 'sync_from_cloud',
+            'content': remote_path,
+            'params': {'local_path': local_path}
+        }
+        result = await self.env.bridge.execute_task(task)
+        return {
+            "status": "success",
+            "message": f"Successfully synced {remote_path} to {local_path}",
+            "details": result
+        }

@@ -12,21 +12,6 @@ class LocalActionSpace(ActionSpace):
     def __init__(self, action_space_name: str, env: LocalCondaEnvironment):
         super().__init__(action_space_name, env)
 
-    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            await self.env.setup()
-            handler = getattr(self, f"_handle_{action_name}", None)
-            if not handler:
-                return {"status": "error", "message": f"Action '{action_name}' not supported."}
-            result = await handler(**param_dict)
-            return {
-                "status": "success" if result.get("status") != "error" else "error",
-                "action": action_name,
-                "output": result
-            }
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
     async def _handle_execute_shell(self, command: str) -> Dict[str, Any]:
         """Execute a shell command in the local environment.
 
@@ -34,19 +19,6 @@ class LocalActionSpace(ActionSpace):
         """
         return await self.env.run_shell(command)
 
-    # async def _handle_execute_python(self, code: str) -> Dict[str, Any]:
-    #     """Execute Python code in the local conda environment.
-
-    #     :param code: The Python code to execute.
-    #     """
-    #     return await self.env.run_python(code)
-
-    # async def _handle_install_packages(self, packages: list) -> Dict[str, Any]:
-    #     """Install Python packages in the local conda environment.
-
-    #     :param packages: List of package names to install.
-    #     """
-    #     return await self.env.install_packages(packages)
 
     async def _handle_run_in_conda_env(self, command: str) -> Dict[str, Any]:
         """Execute a command within the conda environment.

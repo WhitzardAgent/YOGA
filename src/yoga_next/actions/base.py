@@ -90,6 +90,7 @@ class ActionSpace(ABC):
         self._capabilities: Dict[str, Any] = {}
         self._generated = False
 
+
     def _generate_capabilities(self) -> Dict[str, Any]:
         """Dynamically generate capabilities from _handle_* methods."""
         capabilities = {}
@@ -105,9 +106,20 @@ class ActionSpace(ABC):
             self._generated = True
         return self._capabilities
 
-    @abstractmethod
-    async def execute(self, action_name: str, param_dict: dict) -> dict:
-        pass
+    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            await self.env.setup()
+            handler = getattr(self, f"_handle_{action_name}", None)
+            if not handler:
+                return {"status": "error", "message": f"Action '{action_name}' not supported."}
+            result = await handler(**param_dict)
+            return {
+                "status": "success" if result.get("status") != "error" else "error",
+                "action": action_name,
+                "output": result
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     def get_action_space_description(self) -> str:
         lines: List[str] = []

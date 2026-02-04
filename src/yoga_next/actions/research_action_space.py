@@ -22,25 +22,6 @@ class ResearchActionSpace(ActionSpace):
     def __init__(self, action_space_name: str = "research", env=None):
         super().__init__(action_space_name, env)
 
-    async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
-        if action_name not in WHITELIST_ACTIONS:
-            return {
-                "status": "error",
-                "message": f"Action '{action_name}' not available. Do not hallucinate custom functions. Use append_to_notebook to record your findings."
-            }
-
-        try:
-            await self.env.setup()
-            handler = getattr(self, f"_handle_{action_name}", None)
-            result = await handler(**param_dict)
-            return {
-                "status": "success" if result.get("status") != "error" else "error",
-                "action": action_name,
-                "output": result
-            }
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
     def _get_workspace_root(self) -> str:
         if hasattr(self.env, 'config') and isinstance(self.env.config, dict):
             return self.env.config.get("workspace_root", self.env.workspace_root)

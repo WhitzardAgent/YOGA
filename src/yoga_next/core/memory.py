@@ -1,15 +1,7 @@
 ### TODO: Implement more complex architectures
-from collections import OrderedDict
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-import json
-import os
-from .model import Model
-## K-V Architecture
 
 class Memory():
-    def __init__(self, 
-                 model: Model):
+    def __init__(self):
         self.messages = list()
         self.working_memory = list()
         self.action_history = list()

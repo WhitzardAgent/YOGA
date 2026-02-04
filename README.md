@@ -1,305 +1,249 @@
-# YOGA - Next Generation AI Agent Framework
+# Yoga-Next
 
-<p align="center">
-  <strong>🚀 An Intelligent Agent Framework with Dynamic Planning, Rich UI, and Self-Healing Capabilities</strong>
-</p>
+一个模块化的 AI Agent 框架，支持多种执行环境和工具集成。
 
-<p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-developer-guide">Developer Guide</a> •
-  <a href="#-action-spaces">Action Spaces</a>
-</p>
-
----
-
-## ✨ Features
-
-### 🔮 Dynamic Sequential Thinking
-- **Mandatory first-step analysis**: Every task begins with `sequential_thinking` for structured reasoning
-- **Dynamic replanning**: When errors occur, use `is_revision=True` to update your plan
-- **Chain-of-thought exploration**: Explore hypotheses and verify them before executing actions
-
-### 🎨 Rich Interactive Display
-- **Live progress tracking**: Real-time step-by-step visualization with Rich library
-- **Color-coded output**: Syntax highlighting for shell commands, code blocks, and diffs
-- **Structured observations**: Markdown-formatted output with language-aware code blocks
-- **Tree visualization**: Directory structure with Git-style tree display
-
-### 🛡️ Enterprise-Grade Reliability
-- **Timeout protection**: Configurable per-action timeouts (default 60s, long operations up to 300s)
-- **Self-healing**: Fuzzy string matching suggests corrections for failed operations
-- **Syntax validation**: Python files validated with `ast.parse()` before writing
-- **Path security**: Workspace-anchored path resolution prevents escape attempts
-
-### 📊 Memory & Trajectory
-- **Long-term memory**: Persistent working memory across task steps
-- **Trajectory logging**: JSONL-formatted execution history for debugging and replay
-- **Thought trace**: Visual indicator of reasoning progress with revision tracking
-
-### 🔌 Modular Architecture
-- **ActionSpace pattern**: Composable action spaces via `UnionActionSpace`
-- **Environment abstraction**: Support for Local, Jupyter, and Remote Server environments
-- **Auto-generated schemas**: Tool descriptions from docstrings via `inspect`
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         YOGA Agent                               │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │   Planner   │  │   Memory    │  │      Model (LLM)        │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────┤
-│                    Unified Action Space                          │
-│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────┐  │
-│  │  Control  │ │ Thinking  │ │   Edit    │ │   Local/Remote │ │
-│  │  Space    │ │  Space    │ │  Space    │ │    Spaces     │ │
-│  └───────────┘ └───────────┘ └───────────┘ └───────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│                    Environment Layer                             │
-│  ┌───────────────┐  ┌─────────────────┐  ┌─────────────────┐   │
-│  │ LocalCondaEnv │  │ JupyterNotebook │  │ RemoteServerEnv │   │
-│  └───────────────┘  └─────────────────┘  └─────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Core Components
-
-| Component | Purpose |
-|-----------|---------|
-| `Agent` | Main orchestrator with timeout protection and UI rendering |
-| `ActionSpace` | Base class for action implementations |
-| `UnionActionSpace` | Combines multiple action spaces dynamically |
-| `Environment` | Abstraction for file system, shell, and notebook operations |
-| `Memory` | Working memory for conversation context |
-| `MemoryStream` | Trajectory logging for debugging |
-
----
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-git clone https://github.com/your-org/yoga-next.git
-cd yoga-next
-pip install -e .
-```
-
-### Basic Usage
+## 快速开始
 
 ```python
-from yoga_next import Agent, AgentConfig, LocalActionSpace
-from yoga_next.environments import LocalCondaEnvironment
+from yoga_next import YogaAgent, AgentConfig
 
-# Configure the agent
-config = AgentConfig(
-    api_base_url="https://api.openai.com/v1",
-    model_name="gpt-4o",
-    api_key="your-api-key"
-)
+# 从配置文件加载
+config = AgentConfig.from_yaml("config.yaml")
 
-# Create environment and action space
-env = LocalCondaEnvironment({"workspace_root": "/path/to/workspace"})
-action_space = LocalActionSpace("local", env)
+# 创建 Agent
+agent = YogaAgent(agent_config=config)
 
-# Initialize agent
-agent = Agent(
-    agent_config=config,
-    action_spaces=[action_space],
-    use_rich_display=True
-)
-
-# Execute a task
-from yoga_next import Task
-task = Task(task_id="example", instruction="Analyze the codebase structure")
+# 执行任务
+from yoga_next.tasks import Task
+task = Task(task_id="example", instruction="帮我创建一个 Python 文件")
 result = await agent.execute(task)
 ```
 
----
+## 项目结构
 
-## 💻 Developer Guide
+```
+src/yoga_next/
+├── core/                    # 核心模块
+│   ├── agent_core.py        # Agent 核心执行逻辑
+│   ├── action_executor.py   # 动作执行器
+│   ├── memory_manager.py    # 记忆管理
+│   ├── state_builder.py     # 状态构建
+│   ├── renderer.py          # UI 渲染
+│   └── formatter.py         # 输出格式化
+├── actions/                 # Action Spaces（工具集）
+│   ├── base.py             # ActionSpace 基类
+│   ├── edit_action_space.py    # 文件编辑
+│   ├── local_action_space.py   # 本地 shell
+│   ├── remote_server_action_space.py  # 远程服务器
+│   ├── jupyter_notebook_action_space.py  # Jupyter
+│   └── thinking.py         # 思考空间
+├── environments/           # 执行环境
+│   ├── base.py
+│   ├── local_env.py
+│   ├── remote_server_env.py
+│   └── jupyter_notebook_env.py
+├── model.py               # LLM 模型封装
+├── prompts.py             # Prompt 工厂
+├── tasks.py               # 任务定义
+└── yoga_agent.py          # 主入口
+```
 
-### Creating Custom Action Spaces
+## 增量开发指南
+
+### 1. 添加新的 Action Space
+
+参考 `edit_action_space.py` 的实现模式：
 
 ```python
 from yoga_next.actions import ActionSpace
 from typing import Dict, Any
 
 class MyActionSpace(ActionSpace):
-    def __init__(self, env=None):
-        super().__init__("my_actions", env)
-
+    def __init__(self, action_space_name: str, env=None):
+        super().__init__(action_space_name, env)
+    
     async def execute(self, action_name: str, param_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """执行动作，通过反射调用 _handle_* 方法"""
         handler = getattr(self, f"_handle_{action_name}", None)
         if not handler:
-            return {"status": "error", "message": f"Unknown action: {action_name}"}
-        result = await handler(**param_dict)
-        return {"status": "success", "output": result}
-
-    async def _handle_my_action(self, param: str) -> Dict[str, Any]:
-        """Execute custom action.
-
-        :param param: Description of the parameter.
+            return {"status": "error", "message": f"Action '{action_name}' not supported."}
+        return await handler(**param_dict)
+    
+    async def _handle_my_action(self, param1: str, param2: int = 0) -> Dict[str, Any]:
+        """动作描述
+        
+        :param param1: 参数1描述
+        :param param2: 参数2描述
+        
+        Returns:
+            执行结果字典
         """
-        # Your implementation here
-        return {"result": "done"}
+        # 实现逻辑
+        return {"status": "success", "output": "..."}
 ```
 
-### Registering with Agent
+**关键约定**：
+- 所有可调用动作以 `_handle_` 开头命名
+- 使用 docstring 描述参数和返回值
+- 返回格式统一为 `{"status": "success|error", ...}`
+
+### 2. 添加新的 Environment
 
 ```python
-from yoga_next import Agent, AgentConfig
+from yoga_next.environments import Environment
 
-agent = Agent(
+class MyEnvironment(Environment):
+    def __init__(self, config: dict):
+        self.config = config
+        self.workspace_root = config.get("workspace_root", ".")
+    
+    async def setup(self):
+        """初始化环境连接"""
+        pass
+    
+    async def run_shell(self, command: str) -> dict:
+        """执行 shell 命令"""
+        pass
+    
+    async def read_file(self, path: str) -> dict:
+        """读取文件"""
+        pass
+    
+    async def write_file(self, path: str, content: str) -> dict:
+        """写入文件"""
+        pass
+    
+    def get_observation(self) -> str:
+        """获取环境当前状态描述"""
+        return f"Workspace: {self.workspace_root}"
+```
+
+### 3. 扩展 Agent 核心功能
+
+继承 `AgentCore` 添加自定义逻辑：
+
+```python
+from yoga_next.core import AgentCore
+
+class CustomAgent(AgentCore):
+    async def execute_single_task(self, task, task_idx=-1, max_steps=100):
+        # 自定义执行逻辑
+        # 可以调用父类方法或完全重写
+        return await super().execute_single_task(task, task_idx, max_steps)
+```
+
+### 4. 添加新的 Prompt 角色
+
+在 `prompts.py` 中添加：
+
+```python
+class PromptFactory:
+    AGENT_ROLES = {
+        "my_role": """
+# Role: My Custom Role
+...角色描述...
+""",
+    }
+```
+
+使用：
+```python
+agent = YogaAgent(
     agent_config=config,
-    action_spaces=[MyActionSpace(env), LocalActionSpace(env)],
-    use_rich_display=True
+    agent_type="my_role"
 )
 ```
 
-### Path Safety
+## 核心概念
 
-All file paths are automatically:
-- Resolved relative to workspace_root
-- Validated to prevent escape attempts
-- Converted to absolute paths before I/O
+### Action Space
 
-```python
-# In EditActionSpace handlers:
-resolved_path = self._resolve_path(path)  # Safe path handling
-await self.env.read_file(resolved_path)
+Action Space 是 Agent 可调用的工具集合。每个 Action Space：
+- 封装一组相关操作（如文件操作、shell 命令）
+- 通过 `execute(action_name, params)` 统一调用
+- 使用 `_handle_*` 方法实现具体功能
+
+### Environment
+
+Environment 提供底层执行能力：
+- `LocalEnvironment`: 本地 shell 和文件操作
+- `RemoteServerEnvironment`: 通过 SSH/AgentBridge 连接远程服务器
+- `JupyterNotebookEnvironment`: Jupyter 内核交互
+
+### Memory System
+
+- `Memory`: 短期对话历史
+- `MemoryStream`: 长期记忆流，记录所有交互
+- `MemoryManager`: 统一管理记忆操作
+
+### State Builder
+
+构建 Agent 的输入状态，包含：
+- 任务目标
+- 历史思考轨迹
+- 长期记忆摘要
+- 上一步执行结果
+- 环境状态
+
+## 配置示例
+
+```yaml
+# config.yaml
+api_base_url: "https://api.openai.com/v1"
+model_name: "gpt-4"
+api_key: "sk-..."
 ```
 
-### Memory Stream Usage
-
-```python
-# Enable trajectory logging
-agent.dump("/path/to/trajectory.jsonl")
-
-# Replay execution
-from yoga_next import MemoryStream
-stream = MemoryStream.load("/path/to/trajectory.jsonl")
-```
-
----
-
-## 🔧 Action Spaces
-
-### EditActionSpace - Advanced File Editing
-
-| Action | Description |
-|--------|-------------|
-| `view(path, view_range)` | View file/directory with line numbers and syntax highlighting |
-| `create(path, file_text)` | Create files with auto parent directory creation |
-| `str_replace(path, old_str, new_str)` | Replace content with uniqueness checking and diff output |
-| `insert(path, insert_line, new_str)` | Insert lines with Python syntax validation |
-| `search(path, keyword)` | Grep-based search with result limits |
-| `list_tree(path, depth)` | Recursive directory tree visualization |
-
-### LocalActionSpace - Shell Operations
-
-| Action | Description |
-|--------|-------------|
-| `execute_shell(command)` | Execute bash commands in conda environment |
-| `run_in_conda_env(command)` | Run commands in specific conda environment |
-| `read_file(path)` | Read file contents |
-| `write_file(path, content)` | Write file contents |
-| `list_directory(path, depth)` | Recursive directory listing |
-| `exists(path)` | Check path existence |
-
-### ThinkingActionSpace - Dynamic Planning
-
-| Action | Description |
-|--------|-------------|
-| `sequential_thinking(...)` | Structured reasoning with plan revision support |
-
----
-
-## 🎯 Thinking Protocol
-
-Every task **must** start with `sequential_thinking`:
-
-```markdown
-sequential_thinking(
-    thought="Analyze the requirements and break down the task",
-    thought_number=1,
-    total_thoughts=3,
-    next_thought_needed=True,
-    is_revision=False
-)
-```
-
-**Protocol Rules:**
-1. First action for any new task = `sequential_thinking`
-2. On error: use `is_revision=True` to update plan
-3. Only set `next_thought_needed=False` when plan is solid
-4. Maximum 5 consecutive failed attempts → drop subtask
-
----
-
-## 📁 Project Structure
-
-```
-yoga-next/
-├── src/yoga_next/
-│   ├── agent.py              # Main Agent implementation
-│   ├── memory.py             # Working memory management
-│   ├── model.py              # LLM interface with retry logic
-│   ├── planner.py            # Task planning
-│   ├── prompts.py            # System prompts & Thinking Protocol
-│   ├── utils.py              # Logging, extraction, UI utilities
-│   ├── hm.py                 # Memory chunk definitions
-│   ├── agent_config.py       # Configuration dataclass
-│   ├── actions/
-│   │   ├── base.py           # ActionSpace base & schema generation
-│   │   ├── edit_action_space.py  # Advanced file editing
-│   │   ├── local_action_space.py # Shell & file operations
-│   │   ├── thinking.py       # Sequential thinking handler
-│   │   ├── control.py        # Task completion signaling
-│   │   └── ...               # Other action spaces
-│   ├── environments/
-│   │   ├── base.py           # Environment abstract base
-│   │   ├── local_env.py      # Local conda environment
-│   │   ├── jupyter_notebook_env.py
-│   │   └── remote_server_env.py
-│   └── tasks/
-│       └── task.py           # Task definitions
-├── tests/                    # Test suite
-├── configs/                  # Configuration files
-├── task_examples/            # Example challenges
-├── setup.py                  # Package setup
-└── README.md                 # This file
-```
-
----
-
-## 🧪 Testing
+## 测试
 
 ```bash
-# Run all tests
-python -m pytest tests/ -v
+# 运行测试
+pytest tests/
 
-# Run specific test
-python tests/test_local_agent.py
-
-# Run fuzzy self-healing tests
-python tests/run_fuzzy_self_healing_test.py
+# 运行特定测试
+pytest tests/test_edit_agent.py -v
 ```
 
----
+## 依赖安装
 
-## 📝 License
+```bash
+pip install -e .
+
+# 开发依赖
+pip install -e ".[dev]"
+```
+
+## 架构图
+
+```
+┌─────────────────────────────────────────┐
+│              YogaAgent                  │
+│  (继承 AgentCore, 自动初始化所有模块)    │
+└─────────────────────────────────────────┘
+                   │
+    ┌──────────────┼──────────────┐
+    ▼              ▼              ▼
+┌─────────┐  ┌──────────┐  ┌──────────┐
+│  Model  │  │ Memory   │  │ Action   │
+│  (LLM)  │  │ System   │  │ Spaces   │
+└─────────┘  └──────────┘  └──────────┘
+                                  │
+                    ┌─────────────┼─────────────┐
+                    ▼             ▼             ▼
+              ┌─────────┐  ┌──────────┐  ┌──────────┐
+              │  Edit   │  │  Local   │  │ Jupyter  │
+              │  Space  │  │  Space   │  │  Space   │
+              └─────────┘  └──────────┘  └──────────┘
+```
+
+## 贡献指南
+
+1. Fork 仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
+
+## License
 
 MIT License
-
----
-
-<p align="center">
-  Built with ❤️ by the YOGA Team
-</p>
