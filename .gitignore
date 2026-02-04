@@ -6,7 +6,7 @@ __pycache__/
 
 # C extensions
 *.c
-configs/config_silicon.yaml
+configs/*.yaml
 # Distribution / packaging
 .Python
 build/

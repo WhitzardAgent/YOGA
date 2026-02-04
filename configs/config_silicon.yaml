@@ -1,3 +1,0 @@
-api_base_url: "https://api.siliconflow.cn/v1"
-model_name: Qwen/Qwen3-8B # qwen3-235b-a22b-instruct-2507 #
-api_key: "sk-nbxooqwpyyvzfexesvwqgogfogvicxmpyscqgihtsuvyyimr" # random is ok
