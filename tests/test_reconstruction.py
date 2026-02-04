@@ -30,7 +30,7 @@ async def run_reconstruction_task():
     # 指定您的真实工作区路径 (包含 markdown 和 图片)
     workspace_path = Path("./yoga_workspace").resolve()
     # 指定要分析的目标文件 (必须在工作区内)
-    target_md_file = "HackTheBox_Walkthrough.md" 
+    target_md_file = "HTB-CodeTwo_local.md" 
     # ----------------
     
     workspace_path.mkdir(exist_ok=True)
@@ -55,7 +55,7 @@ async def run_reconstruction_task():
     agent_config = AgentConfig.from_yaml(config_path)
 
     # 动作空间：Parser (读) + Shell (写/验证)
-    md_space = MarkdownActionSpace('md_parser', env)
+    md_space = MarkdownActionSpace('md_parser', env, workspace_path)
     local_shell = LocalActionSpace('local_shell', env)
     edit_space = EditActionSpace('edit', env)
     # 定义任务：轨迹重构
@@ -71,16 +71,16 @@ async def run_reconstruction_task():
         请严格按照以下逻辑流进行操作：
 
         1.  **全局侦察 (Structure Analysis):
-            - 调用 `md_parser.get_outline` 获取文档骨架 [1]。
+            - 调用 `get_outline` 获取文档骨架。
             - 识别攻击的关键阶段（如：Reconnaissance, Enumeration, Initial Access, Privilege Escalation）。
 
         2.  **碎片提取 (Fragment Extraction)**:
-            - 按章节顺序，使用 `md_parser.extract_code_blocks` 提取所有的 Shell 命令和控制台输出。
-            - 使用 `md_parser.extract_images` 定位所有截图。
+            - 按章节顺序，使用 `extract_code_blocks` 提取所有的 Shell 命令和控制台输出。
+            - 使用 `extract_images` 定位所有截图。
 
         3.  **视觉感知与对齐 (Visual Grounding)**:
             - 对于每一个截图，必须结合上下文判断其性质。
-            - **核心动作**：如果截图看似包含终端输出（如 Nmap 扫描结果）或 Web 报错信息，必须调用 `md_parser.perform_ocr` 获取文本内容。
+            - **核心动作**：如果截图看似包含终端输出（如 Nmap 扫描结果）或 Web 报错信息，必须调用 `perform_ocr` 获取文本内容。
             - **逻辑关联**：将 OCR 得到的文本作为 "Observation" 与前文的 "Action"（命令）进行配对。
 
         4.  **轨迹组装与清洗 (Trajectory Assembly)**:
