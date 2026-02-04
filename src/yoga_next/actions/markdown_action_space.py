@@ -3,8 +3,10 @@ import os
 import base64
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
+from .base import ActionSpace
+from ..environments import LocalCondaEnvironment
 
-class MarkdownActionSpace:
+class MarkdownActionSpace(ActionSpace):
     """
     Action Space designed for parsing security write-ups (Markdown) and extracting 
     structured execution trajectories. 
@@ -12,12 +14,13 @@ class MarkdownActionSpace:
     This class integrates local file parsing with local Multimodal AI (OCR) capabilities.
     """
 
-    def __init__(self, workspace_root: str):
+    def __init__(self, action_space_name: str, env: LocalCondaEnvironment, workspace_root: str):
         """
         Initialize the action space with a workspace root and OCR client.
 
         :param workspace_root: The root directory where markdown files and images are located.
         """
+        self.action_space_name = action_space_name
         self.workspace_root = workspace_root
         
         # Initialize connection to Local OCR Model (PaddleOCR-VL via OpenAI-compatible API)
@@ -34,6 +37,7 @@ class MarkdownActionSpace:
             "formula": "Formula Recognition:",
             "chart": "Chart Recognition:",
         }
+        super().__init__(action_space_name, env)
 
     async def _read_file_content(self, path: str) -> str:
         """

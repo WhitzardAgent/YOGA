@@ -84,7 +84,7 @@ def _generate_tool_schema(func: Callable) -> Dict[str, Any]:
 
 
 class ActionSpace(ABC):
-    def __init__(self, action_space_name: str, env: Environment):
+    def __init__(self, action_space_name: str, env: Environment, **kwargs):
         self.env = env
         self.action_space_name = action_space_name
         self._capabilities: Dict[str, Any] = {}

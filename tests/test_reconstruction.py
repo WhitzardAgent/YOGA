@@ -110,6 +110,7 @@ async def run_reconstruction_task():
     
     agent = YogaAgent(
         agent_config=agent_config,
+        agent_type='trajectory_reconstructor',
         action_spaces=[local_shell, md_space, edit_space]
     )
 

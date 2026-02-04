@@ -49,18 +49,6 @@ class YogaAgent(AgentCore):
         self.final_result = None
         self.display = YogDisplay() if use_rich_display else None
         
-        # log_info("System Prompt:\n" + self.system_prompt)
-        # =============== YOGA BANNER ===============
-
-        from rich.console import Console
-        from rich.text import Text
-        from rich.panel import Panel
-        console = Console()
-        yoga_text = Text()
-        yoga_text.append("Y", style="bold blue")
-        yoga_text.append("O", style="bold cyan")
-        yoga_text.append("G", style="bold green")
-        yoga_text.append("A", style="bold yellow")
 
         super().__init__(
             model=self.model,
