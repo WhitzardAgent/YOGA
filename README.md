@@ -326,38 +326,43 @@ pip install -e ".[dev]"
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────┐
-│              YogaAgent                  │
-│  (Inherits AgentCore, auto-initializes  │
-│   all modules)                          │
-└─────────────────────────────────────────┘
-                   │
-    ┌──────────────┼──────────────┐
-    ▼              ▼              ▼
-┌─────────┐  ┌──────────┐  ┌──────────┐
-│  Model  │  │ Memory   │  │ Action   │
-│  (LLM)  │  │ System   │  │ Spaces   │
-└─────────┘  └──────────┘  └──────────┘
-                                  │
-           ┌──────────────────────┼──────────────────────┐
-           ▼                      ▼                      ▼
-    ┌─────────┐           ┌──────────┐           ┌──────────┐
-    │  Edit   │           │  Local    │           │ Jupyter   │
-    │  Space  │◄──────────►│  Space    │◄─────────►│  Space    │
-    └─────────┘           └──────────┘           └──────────┘
-           │                      │                      │
-           └──────────────────────┼──────────────────────┘
-                                  ▼
-                    ┌─────────────────────┐
-                    │   Environments       │
-                    │  ┌───────────────┐  │
-                    │  │ LocalEnv      │  │
-                    │  │ RemoteEnv     │  │
-                    │  │ JupyterEnv    │  │
-                    │  │ CustomEnv     │  │
-                    │  └───────────────┘  │
-                    └─────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        YogaAgent                             │
+│            (Inherits AgentCore, auto-initializes            │
+│             all modules)                                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+           ┌──────────────────┼──────────────────┐
+           ▼                  ▼                  ▼
+    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+    │    Model     │   │   Memory    │   │   Action    │
+    │   (LLM)      │   │   System    │   │   Spaces    │
+    └─────────────┘   └─────────────┘   └─────────────┘
+                                              │
+    ┌─────────────────────────────────────────────────────────────┐
+    │                                                             │
+    ▼                                                             ▼
+┌───────────────────┐                                   ┌───────────────────┐
+│   LocalEnv        │                                   │ JupyterNotebookEnv │
+│                   │                                   │                   │
+│  ◄─────────────── │                                   │  ◄─────────────── │
+│  │                │                                   │  │                │
+│  ▼                │                                   │  ▼                │
+│ EditActionSpace  │                                   │ JupyterActionSpace│
+│ LocalActionSpace  │                                   │                   │
+└───────────────────┘                                   └───────────────────┘
 ```
+
+**Relationship Legend**:
+| Environment | Available Action Spaces |
+|-------------|----------------------|
+| `LocalEnv` | `EditActionSpace`, `LocalActionSpace` |
+| `JupyterNotebookEnv` | `JupyterActionSpace` |
+
+**Constraints**:
+- Each Action Space can only bind to specific Environment types
+- Multiple Action Spaces can share the same Environment (e.g., both `EditActionSpace` and `LocalActionSpace` bind to `LocalEnv`)
+- Cross-environment binding is NOT allowed (e.g., `EditActionSpace` cannot bind to `JupyterNotebookEnv`)
 
 ## Contributing
 
